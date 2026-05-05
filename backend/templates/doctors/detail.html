@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>{{ doctor.name }}</title>
+    <style>body{font-family:Arial,sans-serif;margin:24px;}dl{display:grid;grid-template-columns:120px 1fr;gap:8px;}dt{font-weight:bold;}</style>
+  </head>
+  <body>
+    <h1>{{ doctor.name }}</h1>
+    <dl>
+      <dt>Specialty</dt><dd>{{ doctor.specialty }}</dd>
+      <dt>Department</dt><dd>{{ doctor.department|default:'General' }}</dd>
+      <dt>Available</dt><dd>{{ doctor.available|yesno:'Yes,No' }}</dd>
+    </dl>
+    <p><a href="/doctors/">Back to doctors</a></p>
+  </body>
+</html>

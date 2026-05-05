@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>{{ account.username }}</title>
+    <style>body{font-family:Arial,sans-serif;margin:24px;}</style>
+  </head>
+  <body>
+    <h1>{{ account.username }}</h1>
+    <dl>
+      <dt>Email</dt><dd>{{ account.email }}</dd>
+      <dt>Role</dt><dd>{{ account.role }}</dd>
+      <dt>Created</dt><dd>{{ account.created_at|date:'Y-m-d H:i' }}</dd>
+    </dl>
+    <p><a href="/accounts/">Back to accounts</a></p>
+  </body>
+</html>

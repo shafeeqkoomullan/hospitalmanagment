@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Invoice {{ invoice.id }}</title>
+    <style>body{font-family:Arial,sans-serif;margin:24px;}dl{display:grid;grid-template-columns:120px 1fr;gap:8px;}dt{font-weight:bold;}</style>
+  </head>
+  <body>
+    <h1>Invoice {{ invoice.id }}</h1>
+    <dl>
+      <dt>Patient</dt><dd>{{ invoice.patient_name }}</dd>
+      <dt>Amount</dt><dd>{{ invoice.amount }}</dd>
+      <dt>Status</dt><dd>{{ invoice.status }}</dd>
+      <dt>Due date</dt><dd>{{ invoice.due_date }}</dd>
+      <dt>Created at</dt><dd>{{ invoice.created_at|date:'Y-m-d H:i' }}</dd>
+    </dl>
+    <p><a href="/billing/">Back to billing</a></p>
+  </body>
+</html>

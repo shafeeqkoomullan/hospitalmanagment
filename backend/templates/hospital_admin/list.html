@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Admin Notices</title>
+    <style>body{font-family:Arial,sans-serif;margin:24px;}article{margin-bottom:20px;padding:18px;border:1px solid #ddd;border-radius:10px;}</style>
+  </head>
+  <body>
+    <h1>Hospital Admin Notices</h1>
+    {% for notice in notices %}
+      <article>
+        <h2><a href="{{ notice.id }}/">{{ notice.title }}</a></h2>
+        <p>{{ notice.published_at|date:'Y-m-d H:i' }}</p>
+      </article>
+    {% empty %}
+      <p>No notices published yet.</p>
+    {% endfor %}
+  </body>
+</html>

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Billing Invoices</title>
+    <style>body{font-family:Arial,sans-serif;margin:24px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ccc;padding:10px;}</style>
+  </head>
+  <body>
+    <h1>Billing</h1>
+    <table>
+      <thead>
+        <tr><th>Patient</th><th>Amount</th><th>Status</th><th>Due Date</th></tr>
+      </thead>
+      <tbody>
+        {% for invoice in invoices %}
+          <tr>
+            <td><a href="{{ invoice.id }}/">{{ invoice.patient_name }}</a></td>
+            <td>{{ invoice.amount }}</td>
+            <td>{{ invoice.status }}</td>
+            <td>{{ invoice.due_date }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">No invoices available.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>
