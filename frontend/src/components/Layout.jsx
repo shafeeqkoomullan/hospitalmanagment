@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import api from "../api/axios";
 
@@ -7,6 +8,7 @@ const NAV_LINKS = {
     { label: "Appointments", path: "/doctor/appointments", icon: "📅" },
     { label: "Profile", path: "/doctor/profile", icon: "👤" },
   ],
+
   receptionist: [
     { label: "Dashboard", path: "/receptionist/dashboard", icon: "🏠" },
     { label: "Patients", path: "/receptionist/patients", icon: "🧑‍⚕️" },
@@ -15,6 +17,7 @@ const NAV_LINKS = {
     { label: "Walk-In", path: "/receptionist/walkin", icon: "🚶" },
     { label: "Visitor Log", path: "/receptionist/visitors", icon: "📋" },
   ],
+
   patient: [
     { label: "Dashboard", path: "/patient/dashboard", icon: "🏠" },
     { label: "My Profile", path: "/patient/profile", icon: "👤" },
@@ -24,6 +27,7 @@ const NAV_LINKS = {
     { label: "Feedback", path: "/patient/feedback", icon: "⭐" },
     { label: "Support", path: "/patient/tickets", icon: "🎫" },
   ],
+
   admin: [
     { label: "Dashboard", path: "/admin/dashboard", icon: "🏠" },
     { label: "Doctors", path: "/admin/doctors", icon: "👨‍⚕️" },
@@ -38,90 +42,343 @@ const NAV_LINKS = {
 export default function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
+
   const user = JSON.parse(localStorage.getItem("user") || "{}");
+
   const links = NAV_LINKS[user.role] || [];
+
+  const [collapsed, setCollapsed] = useState(
+    localStorage.getItem("sidebar_collapsed") === "true"
+  );
+
+  const toggle = () => {
+    const next = !collapsed;
+
+    setCollapsed(next);
+
+    localStorage.setItem(
+      "sidebar_collapsed",
+      String(next)
+    );
+  };
 
   const logout = async () => {
     try {
-      const refresh = localStorage.getItem("refresh_token");
-      await api.post("/accounts/auth/logout/", { refresh });
+      const refresh =
+        localStorage.getItem("refresh_token");
+
+      await api.post(
+        "/accounts/auth/logout/",
+        { refresh }
+      );
     } catch {}
+
     localStorage.clear();
+
     navigate("/login");
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex w-full min-h-screen bg-gray-100 overflow-hidden">
 
       {/* Sidebar */}
-      <aside className="w-64 bg-teal-900 text-white flex flex-col fixed h-full z-40">
+      <aside
+        className={`
+          fixed
+          top-0
+          left-0
+          h-screen
+          z-40
+          bg-teal-900
+          text-white
+          flex
+          flex-col
+          transition-all
+          duration-300
+          ${collapsed ? "w-16" : "w-64"}
+        `}
+      >
 
         {/* Logo */}
-        <div className="px-6 py-5 border-b border-teal-700">
-          <div className="text-xl font-bold" style={{ fontFamily: "Georgia, serif" }}>
-            Hospital
-          </div>
-          <div className="text-xs text-teal-400 uppercase tracking-widest mt-0.5 capitalize">
-            {user.role} Portal
-          </div>
+        <div
+          className={`
+            px-3
+            py-4
+            border-b
+            border-teal-700
+            flex
+            items-center
+            ${collapsed
+              ? "justify-center"
+              : "justify-between"}
+          `}
+        >
+
+          {!collapsed && (
+            <div>
+              <div
+                className="text-xl font-bold"
+                style={{
+                  fontFamily: "Georgia, serif",
+                }}
+              >
+                Hospital
+              </div>
+
+              <div className="text-[10px] text-teal-400 uppercase tracking-widest capitalize">
+                {user.role} Portal
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={toggle}
+            className="
+              w-8
+              h-8
+              rounded-lg
+              bg-teal-700
+              hover:bg-teal-600
+              flex
+              items-center
+              justify-center
+              transition-colors
+            "
+          >
+            {collapsed ? "▶" : "◀"}
+          </button>
         </div>
 
-        {/* User info */}
-        <div className="px-6 py-4 border-b border-teal-700">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-teal-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
+        {/* User */}
+        <div className="px-3 py-4 border-b border-teal-700">
+
+          <div
+            className={`
+              flex
+              items-center
+              ${collapsed
+                ? "justify-center"
+                : "gap-3"}
+            `}
+          >
+
+            <div className="
+              w-10
+              h-10
+              rounded-full
+              bg-teal-600
+              flex
+              items-center
+              justify-center
+              font-bold
+            ">
               {user.username?.[0]?.toUpperCase() || "U"}
             </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold truncate">{user.username}</div>
-              <div className="text-xs text-teal-400 capitalize">{user.role}</div>
-            </div>
+
+            {!collapsed && (
+              <div>
+                <div className="font-semibold text-sm">
+                  {user.username}
+                </div>
+
+                <div className="text-xs text-teal-300 capitalize">
+                  {user.role}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Nav links */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {/* Navigation */}
+        <nav className="
+          flex-1
+          overflow-y-auto
+          px-2
+          py-4
+          space-y-1
+        ">
+
           {links.map((link) => {
-            const active = location.pathname === link.path;
+            const active =
+              location.pathname === link.path;
+
             return (
               <Link
                 key={link.path}
                 to={link.path}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  active
-                    ? "bg-teal-700 text-white"
-                    : "text-teal-200 hover:bg-teal-800 hover:text-white"
-                }`}
+                title={collapsed ? link.label : ""}
+                className={`
+                  flex
+                  items-center
+                  ${collapsed
+                    ? "justify-center"
+                    : "gap-3"}
+                  px-3
+                  py-3
+                  rounded-xl
+                  text-sm
+                  font-medium
+                  transition-all
+
+                  ${
+                    active
+                      ? "bg-teal-700 text-white"
+                      : "text-teal-200 hover:bg-teal-800 hover:text-white"
+                  }
+                `}
               >
-                <span>{link.icon}</span>
-                {link.label}
+
+                <span className="text-lg">
+                  {link.icon}
+                </span>
+
+                {!collapsed && (
+                  <span>
+                    {link.label}
+                  </span>
+                )}
               </Link>
             );
           })}
         </nav>
 
         {/* Logout */}
-        <div className="px-4 py-4 border-t border-teal-700">
+        <div className="p-3 border-t border-teal-700">
+
           <button
             onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-teal-200 hover:bg-red-600 hover:text-white transition-all"
+            className={`
+              w-full
+              flex
+              items-center
+              ${collapsed
+                ? "justify-center"
+                : "gap-3"}
+              px-3
+              py-3
+              rounded-xl
+              text-sm
+              font-medium
+              text-teal-200
+              hover:bg-red-600
+              hover:text-white
+              transition-all
+            `}
           >
-            <span>🚪</span> Logout
+
+            <span className="text-lg">
+              🚪
+            </span>
+
+            {!collapsed && (
+              <span>
+                Logout
+              </span>
+            )}
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 ml-64">
-        {/* Top bar */}
-        <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between sticky top-0 z-30">
-          <h1 className="text-sm font-semibold text-gray-600 capitalize">
-            {location.pathname.split("/").filter(Boolean).join(" › ")}
-          </h1>
-          <span className="text-sm text-gray-400">👋 {user.username}</span>
-        </div>
-        <div className="p-8">{children}</div>
-      </main>
+      {/* Main Wrapper */}
+      <div
+        className={`
+          flex-1
+          min-w-0
+          transition-all
+          duration-300
+          min-h-screen
+          ${collapsed ? "ml-16" : "ml-64"}
+        `}
+      >
+
+        {/* Topbar */}
+        <header className="
+          sticky
+          top-0
+          z-30
+          bg-white
+          border-b
+          border-gray-200
+          px-6
+          py-4
+          flex
+          items-center
+          justify-between
+        ">
+
+          <div className="flex items-center gap-3">
+
+            <button
+              onClick={toggle}
+              className="
+                lg:hidden
+                w-8
+                h-8
+                rounded-lg
+                border
+                border-gray-200
+                flex
+                items-center
+                justify-center
+              "
+            >
+              ☰
+            </button>
+
+            <h1 className="
+              text-sm
+              font-semibold
+              text-gray-600
+              capitalize
+            ">
+              {location.pathname
+                .split("/")
+                .filter(Boolean)
+                .join(" › ")}
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-3">
+
+            <span className="
+              hidden
+              md:block
+              text-sm
+              text-gray-500
+            ">
+              👋 {user.username}
+            </span>
+
+            <div
+              className={`
+                text-xs
+                px-3
+                py-1
+                rounded-full
+                font-semibold
+                capitalize
+
+                ${
+                  user.role === "admin"
+                    ? "bg-purple-100 text-purple-700"
+                    : user.role === "doctor"
+                    ? "bg-teal-100 text-teal-700"
+                    : user.role === "receptionist"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-orange-100 text-orange-700"
+                }
+              `}
+            >
+              {user.role}
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="p-6 overflow-x-hidden">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

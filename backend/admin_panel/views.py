@@ -190,6 +190,11 @@ class AdminDashboardAPIView(APIView):
     permission_classes = [IsAuthenticated, IsHospitalAdmin]
 
     def get(self, request):
+        
+        print("VIEW USER:", request.user)
+        print("VIEW ROLE:", getattr(request.user, "role", None))
+        print("VIEW AUTH:", request.user.is_authenticated)
+
         date_param = request.query_params.get('date')
 
         if date_param:
