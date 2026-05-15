@@ -112,7 +112,7 @@ class AccountListAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def get(self, request):
-        accounts = Account.objects.all().order_by('-date_joined')
+        accounts = CustomUser.objects.all().order_by('-date_joined')
 
         role = request.query_params.get('role')
         is_active = request.query_params.get('is_active')

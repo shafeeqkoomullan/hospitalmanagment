@@ -1,4 +1,5 @@
 from django.urls import path
+from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     LoginAPIView,
     LogoutAPIView,
@@ -29,4 +30,9 @@ urlpatterns = [
     path('accounts/<int:pk>/delete/',      AccountDeleteAPIView.as_view(),      name='account-delete'),
     path('accounts/<int:pk>/toggle/',      AccountToggleActiveAPIView.as_view(),name='account-toggle'),
     path('accounts/<int:pk>/change-role/', AccountRoleChangeAPIView.as_view(),  name='account-change-role'),
+    path(
+        "auth/login/refresh/",
+        TokenRefreshView.as_view(),
+        name="token_refresh",
+    ),
 ]
