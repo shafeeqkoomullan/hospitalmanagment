@@ -6,7 +6,7 @@ import Layout from "../../components/Layout";
 export default function DoctorPatientProfile() {
 
   // ✅ FIXED
-  const { id } = useParams();
+  const { pk } = useParams();
 
   const navigate = useNavigate();
 
@@ -22,7 +22,7 @@ export default function DoctorPatientProfile() {
 
   useEffect(() => {
     fetchPatient();
-  }, [id]);
+  }, [pk]);
 
   const fetchPatient = async () => {
 
@@ -34,7 +34,7 @@ export default function DoctorPatientProfile() {
 
       // ✅ FIXED ENDPOINT
       const res = await api.get(
-        `/doctorapp/patients/${id}/`
+        `/doctorapp/patients/${pk}/`
       );
 
       console.log("Patient Response:", res.data);

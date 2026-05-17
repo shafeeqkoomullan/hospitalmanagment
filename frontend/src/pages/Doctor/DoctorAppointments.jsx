@@ -358,7 +358,7 @@ export default function DoctorAppointments() {
                               }
 
                               navigate(
-                                `/doctor/patients/${ap.patient}`
+                                `/doctor/patients/${ap.patient_pk}`
                               );
                             }}
                             className="px-5 py-4 font-medium text-blue-700 hover:text-blue-900 cursor-pointer"
@@ -465,7 +465,7 @@ export default function DoctorAppointments() {
                                     }
 
                                     navigate(
-                                      `/doctor/prescriptions/create/${ap.patient}`
+                                      `/doctor/prescriptions/create/${ap.patient_pk}`
                                     );
                                   }}
                                   className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition"
@@ -490,7 +490,7 @@ export default function DoctorAppointments() {
                                     }
 
                                     navigate(
-                                      `/doctor/prescriptions/edit/${ap.patient}`
+                                      `/doctor/prescriptions/edit/${ap.patient_pk}`
                                     );
                                   }}
                                   className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-lg text-xs font-medium transition"
