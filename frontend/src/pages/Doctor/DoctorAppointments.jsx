@@ -45,10 +45,6 @@ export default function DoctorAppointments() {
 
       console.log("Appointments Error:", err);
 
-      console.log("Response:", err?.response);
-
-      console.log("Data:", err?.response?.data);
-
       setError(
         err?.response?.data?.error ||
         "Unable to load appointments"
@@ -82,7 +78,7 @@ export default function DoctorAppointments() {
         `/doctorapp/appointments/${appointmentId}/complete/`
       );
 
-      alert("Appointment completed");
+      alert("Appointment completed successfully");
 
       fetchAppointments(selectedDate);
 
@@ -98,7 +94,7 @@ export default function DoctorAppointments() {
   };
 
   // ======================================================
-  // Status Colors
+  // Status Styles
   // ======================================================
 
   const statusStyles = {
@@ -138,7 +134,7 @@ export default function DoctorAppointments() {
 
             <p className="text-gray-500 mt-1">
 
-              View and manage patient appointments
+              Manage patient consultations and prescriptions
 
             </p>
 
@@ -160,7 +156,15 @@ export default function DoctorAppointments() {
               onChange={(e) =>
                 setSelectedDate(e.target.value)
               }
-              className="border border-gray-300 rounded-xl px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="
+                border border-gray-300
+                rounded-xl
+                px-4 py-2
+                bg-white
+                focus:outline-none
+                focus:ring-2
+                focus:ring-blue-600
+              "
             />
 
           </div>
@@ -171,7 +175,15 @@ export default function DoctorAppointments() {
         {/* Summary Card */}
         {/* ====================================================== */}
 
-        <div className="bg-gradient-to-r from-blue-700 to-blue-600 rounded-2xl p-6 text-white shadow-sm">
+        <div className="
+          bg-gradient-to-r
+          from-blue-700
+          to-blue-600
+          rounded-2xl
+          p-6
+          text-white
+          shadow-sm
+        ">
 
           <div className="flex items-center justify-between flex-wrap gap-4">
 
@@ -217,7 +229,14 @@ export default function DoctorAppointments() {
 
         {loading && (
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+          <div className="
+            bg-white
+            rounded-2xl
+            border border-gray-100
+            shadow-sm
+            p-8
+            text-center
+          ">
 
             <p className="text-gray-600">
 
@@ -235,7 +254,13 @@ export default function DoctorAppointments() {
 
         {error && (
 
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
+          <div className="
+            bg-red-50
+            border border-red-200
+            text-red-700
+            px-4 py-3
+            rounded-xl
+          ">
 
             {error}
 
@@ -249,7 +274,13 @@ export default function DoctorAppointments() {
 
         {!loading && (
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="
+            bg-white
+            rounded-2xl
+            border border-gray-100
+            shadow-sm
+            overflow-hidden
+          ">
 
             {/* Table Header */}
 
@@ -293,7 +324,10 @@ export default function DoctorAppointments() {
 
                 <table className="w-full">
 
-                  <thead className="bg-gray-50 border-b border-gray-100">
+                  <thead className="
+                    bg-gray-50
+                    border-b border-gray-100
+                  ">
 
                     <tr>
 
@@ -309,7 +343,15 @@ export default function DoctorAppointments() {
 
                         <th
                           key={header}
-                          className="px-5 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                          className="
+                            px-5 py-4
+                            text-left
+                            text-xs
+                            font-semibold
+                            text-gray-500
+                            uppercase
+                            tracking-wider
+                          "
                         >
 
                           {header}
@@ -324,192 +366,236 @@ export default function DoctorAppointments() {
 
                   <tbody className="divide-y divide-gray-50">
 
-                    {appointments.map((ap) => {
+                    {appointments.map((ap) => (
 
-                      console.log("Appointment:", ap);
+                      <tr
+                        key={ap.id}
+                        className="hover:bg-gray-50 transition"
+                      >
 
-                      return (
+                        {/* Time */}
 
-                        <tr
-                          key={ap.id}
-                          className="hover:bg-gray-50 transition"
+                        <td className="px-5 py-4 text-gray-700">
+
+                          {ap.appointment_time || "--"}
+
+                        </td>
+
+                        {/* Patient */}
+
+                        <td
+                          onClick={() => {
+
+                            if (!ap.patient_pk) {
+
+                              alert(
+                                "Patient ID missing from backend response"
+                              );
+
+                              return;
+                            }
+
+                            navigate(
+                              `/doctor/patients/${ap.patient_pk}`
+                            );
+                          }}
+                          className="
+                            px-5 py-4
+                            font-medium
+                            text-blue-700
+                            hover:text-blue-900
+                            cursor-pointer
+                          "
                         >
 
-                          {/* Time */}
+                          {ap.patient_name || "--"}
 
-                          <td className="px-5 py-4 text-gray-700">
+                        </td>
 
-                            {ap.appointment_time || "--"}
+                        {/* Patient ID */}
 
-                          </td>
+                        <td className="px-5 py-4 text-gray-500">
 
-                          {/* Patient */}
+                          {ap.patient_code || "--"}
 
-                          <td
-                            onClick={() => {
+                        </td>
 
-                              if (!ap.patient) {
+                        {/* Token */}
 
-                                alert(
-                                  "Patient ID missing from backend response"
-                                );
+                        <td className="
+                          px-5 py-4
+                          font-semibold
+                          text-gray-800
+                        ">
 
-                                return;
-                              }
+                          {ap.token_number || "--"}
 
-                              navigate(
-                                `/doctor/patients/${ap.patient_pk}`
-                              );
-                            }}
-                            className="px-5 py-4 font-medium text-blue-700 hover:text-blue-900 cursor-pointer"
-                          >
+                        </td>
 
-                            {ap.patient_name || "--"}
+                        {/* Status */}
 
-                          </td>
+                        <td className="px-5 py-4">
 
-                          {/* Patient ID */}
-
-                          <td className="px-5 py-4 text-gray-500">
-
-                            {ap.patient_code || "--"}
-
-                          </td>
-
-                          {/* Token */}
-
-                          <td className="px-5 py-4 font-semibold text-gray-800">
-
-                            {ap.token_number || "--"}
-
-                          </td>
-
-                          {/* Status */}
-
-                          <td className="px-5 py-4">
-
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          <span
+                            className={`
+                              px-3 py-1
+                              rounded-full
+                              text-xs
+                              font-semibold
+                              ${
                                 statusStyles[ap.status] ||
                                 "bg-gray-100 text-gray-700"
-                              }`}
-                            >
+                              }
+                            `}
+                          >
 
-                              {ap.status || "--"}
+                            {ap.status || "--"}
+
+                          </span>
+
+                        </td>
+
+                        {/* Prescription */}
+
+                        <td className="px-5 py-4">
+
+                          {ap.has_prescription ? (
+
+                            <span className="
+                              text-green-700
+                              font-medium
+                            ">
+
+                              Available
 
                             </span>
 
-                          </td>
+                          ) : (
 
-                          {/* Prescription */}
+                            <span className="
+                              text-orange-600
+                              font-medium
+                            ">
 
-                          <td className="px-5 py-4">
+                              Not Added
 
-                            {ap.has_prescription ? (
+                            </span>
 
-                              <span className="text-green-700 font-medium">
+                          )}
 
-                                Available
+                        </td>
 
-                              </span>
+                        {/* Actions */}
 
-                            ) : (
+                        <td className="px-5 py-4">
 
-                              <span className="text-orange-600 font-medium">
+                          <div className="flex flex-wrap gap-2">
 
-                                Not Added
+                            {/* Complete */}
 
-                              </span>
+                            {ap.status !== "Completed" && (
+
+                              <button
+                                onClick={() =>
+                                  completeAppointment(ap.id)
+                                }
+                                className="
+                                  bg-green-600
+                                  hover:bg-green-700
+                                  text-white
+                                  px-3 py-2
+                                  rounded-lg
+                                  text-xs
+                                  font-medium
+                                  transition
+                                "
+                              >
+
+                                Complete
+
+                              </button>
 
                             )}
 
-                          </td>
+                            {/* Add Prescription */}
 
-                          {/* Actions */}
+                            {!ap.has_prescription ? (
 
-                          <td className="px-5 py-4">
+                              <button
+                                onClick={() => {
 
-                            <div className="flex flex-wrap gap-2">
+                                  if (!ap.patient_pk) {
 
-                              {/* Complete */}
+                                    alert(
+                                      "Patient ID missing from backend response"
+                                    );
 
-                              {ap.status !== "Completed" && (
-
-                                <button
-                                  onClick={() =>
-                                    completeAppointment(ap.id)
+                                    return;
                                   }
-                                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition"
-                                >
 
-                                  Complete
+                                  navigate(
+                                    `/doctor/prescriptions/create/${ap.patient_pk}`
+                                  );
+                                }}
+                                className="
+                                  bg-blue-600
+                                  hover:bg-blue-700
+                                  text-white
+                                  px-3 py-2
+                                  rounded-lg
+                                  text-xs
+                                  font-medium
+                                  transition
+                                "
+                              >
 
-                                </button>
+                                Add Prescription
 
-                              )}
+                              </button>
 
-                              {/* Add Prescription */}
+                            ) : (
 
-                              {!ap.has_prescription ? (
+                              <button
+                                onClick={() => {
 
-                                <button
-                                  onClick={() => {
+                                  if (!ap.patient_pk) {
 
-                                    if (!ap.patient) {
-
-                                      alert(
-                                        "Patient ID missing from backend response"
-                                      );
-
-                                      return;
-                                    }
-
-                                    navigate(
-                                      `/doctor/prescriptions/create/${ap.patient_pk}`
+                                    alert(
+                                      "Patient ID missing from backend response"
                                     );
-                                  }}
-                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition"
-                                >
 
-                                  Add Prescription
+                                    return;
+                                  }
 
-                                </button>
+                                  navigate(
+                                    `/doctor/prescriptions/edit/${ap.patient_pk}`
+                                  );
+                                }}
+                                className="
+                                  bg-yellow-500
+                                  hover:bg-yellow-600
+                                  text-white
+                                  px-3 py-2
+                                  rounded-lg
+                                  text-xs
+                                  font-medium
+                                  transition
+                                "
+                              >
 
-                              ) : (
+                                Edit Prescription
 
-                                <button
-                                  onClick={() => {
+                              </button>
 
-                                    if (!ap.patient) {
+                            )}
 
-                                      alert(
-                                        "Patient ID missing from backend response"
-                                      );
+                          </div>
 
-                                      return;
-                                    }
+                        </td>
 
-                                    navigate(
-                                      `/doctor/prescriptions/edit/${ap.patient_pk}`
-                                    );
-                                  }}
-                                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-lg text-xs font-medium transition"
-                                >
+                      </tr>
 
-                                  Edit Prescription
-
-                                </button>
-
-                              )}
-
-                            </div>
-
-                          </td>
-
-                        </tr>
-
-                      );
-                    })}
+                    ))}
 
                   </tbody>
 
