@@ -10,24 +10,12 @@ class Patient(AuditModel):
         on_delete=models.CASCADE,
         related_name="patient_profile"
     )
-
-    patient_id = models.CharField(
-        max_length=20,
-        unique=True,
-        editable=False
-    )
-
+    patient_id = models.CharField(max_length=20, unique=True, editable=False)
     phone = models.CharField(max_length=20)
     address = models.TextField(blank=True)
     age = models.PositiveIntegerField(null=True, blank=True)
-
-    GENDER_CHOICES = (
-        ("male", "Male"),
-        ("female", "Female"),
-        ("other", "Other"),
-    )
+    GENDER_CHOICES = (("male","Male"),("female","Female"),("other","Other"))
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES)
-
     blood_group = models.CharField(max_length=5, blank=True)
     emergency_contact = models.CharField(max_length=20, blank=True)
     is_blocked = models.BooleanField(default=False)
@@ -42,20 +30,13 @@ class Patient(AuditModel):
 
 
 class MedicalRecord(AuditModel):
-    patient = models.ForeignKey(
-        Patient,
-        on_delete=models.CASCADE,
-        related_name="medical_records"
-    )
-
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="medical_records")
     doctor = models.ForeignKey(
-        "doctorapp.Doctor",
+        "doctorapp.Doctor",         # ← string reference, no import
         on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        null=True, blank=True,
         related_name="patient_medical_records"
     )
-
     diagnosis = models.TextField()
     prescription = models.TextField(blank=True)
     test_results = models.TextField(blank=True)
@@ -65,12 +46,7 @@ class MedicalRecord(AuditModel):
 
 
 class MedicalReport(AuditModel):
-    medical_record = models.ForeignKey(
-        MedicalRecord,
-        on_delete=models.CASCADE,
-        related_name="reports"
-    )
-
+    medical_record = models.ForeignKey(MedicalRecord, on_delete=models.CASCADE, related_name="reports")
     title = models.CharField(max_length=100)
     file = models.FileField(upload_to="patients/reports/")
 
@@ -79,20 +55,13 @@ class MedicalReport(AuditModel):
 
 
 class Feedback(AuditModel):
-    patient = models.ForeignKey(
-        Patient,
-        on_delete=models.CASCADE,
-        related_name="feedbacks"
-    )
-
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="feedbacks")
     doctor = models.ForeignKey(
-        "doctorapp.Doctor",
+        "doctorapp.Doctor",         # ← string reference, no import
         on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        null=True, blank=True,
         related_name="patient_feedbacks"
     )
-
     rating = models.PositiveSmallIntegerField()
     comment = models.TextField(blank=True)
 
@@ -101,40 +70,20 @@ class Feedback(AuditModel):
 
 
 class SupportTicket(AuditModel):
-    patient = models.ForeignKey(
-        Patient,
-        on_delete=models.CASCADE,
-        related_name="support_tickets"
-    )
-
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="support_tickets")
     subject = models.CharField(max_length=100)
     message = models.TextField()
-
-    STATUS_CHOICES = (
-        ("open", "Open"),
-        ("in_progress", "In Progress"),
-        ("resolved", "Resolved"),
-    )
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default="open"
-    )
+    STATUS_CHOICES = (("open","Open"),("in_progress","In Progress"),("resolved","Resolved"))
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="open")
 
     def __str__(self):
         return f"Ticket - {self.patient.patient_id}"
 
 
 class Admission(AuditModel):
-    patient = models.ForeignKey(
-        Patient,
-        on_delete=models.CASCADE,
-        related_name="admissions"
-    )
-
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="admissions")
     admitted_on = models.DateTimeField(auto_now_add=True)
     discharged_on = models.DateTimeField(null=True, blank=True)
-
     room_number = models.CharField(max_length=10)
     reason = models.TextField()
 

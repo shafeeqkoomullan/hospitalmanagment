@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.db import transaction
 
+import secrets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -58,52 +59,94 @@ class ReceptionistDashboardAPIView(APIView):
 class PatientRegisterAPIView(APIView):
     permission_classes = [IsAuthenticated, IsReceptionist]
 
+    @transaction.atomic
     def post(self, request):
-        full_name = request.data.get('full_name', '').strip()
-        phone = request.data.get('phone', '').strip()
-        email = request.data.get('email', '').strip()
+
+        full_name = request.data.get("full_name", "").strip()
+        phone = request.data.get("phone", "").strip()
+        email = request.data.get("email", "").strip()
 
         if not full_name:
-            return Response({"full_name": "Patient name is required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"full_name": "Patient name is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if not phone:
-            return Response({"phone": "Phone number is required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"phone": "Phone number is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        # Prevent duplicate patient
         if User.objects.filter(username=phone).exists():
-            return Response({"phone": "Patient already exists."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"phone": "Patient already exists."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        parts = full_name.split(' ', 1)
+        # Split first & last name
+        parts = full_name.split(" ", 1)
         first_name = parts[0]
-        last_name = parts[1] if len(parts) > 1 else ''
+        last_name = parts[1] if len(parts) > 1 else ""
 
-        user = User.objects.create_user(
-            username=phone,
-            password=User.objects.make_random_password(),
-            first_name=first_name,
-            last_name=last_name,
-            email=email,
-            role='patient',
-        )
+        # Generate secure random password
+        random_password = secrets.token_urlsafe(12)
 
-        patient_data = {
-            'user': user.id,
-            'phone': phone,
-            'gender': request.data.get('gender', 'other'),
-            'address': request.data.get('address', ''),
-            'age': request.data.get('age'),
-            'blood_group': request.data.get('blood_group', ''),
-            'emergency_contact': request.data.get('emergency_contact', ''),
-        }
+        try:
+            # Create user
+            user = User.objects.create_user(
+                username=phone,
+                password=random_password,
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                role="patient",
+            )
 
-        serializer = PatientSerializer(data=patient_data)
+            # Patient profile data
+            patient_data = {
+                "user": user.id,
+                "phone": phone,
+                "gender": request.data.get("gender", "other"),
+                "address": request.data.get("address", ""),
+                "age": request.data.get("age"),
+                "blood_group": request.data.get("blood_group", ""),
+                "emergency_contact": request.data.get("emergency_contact", ""),
+            }
 
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            serializer = PatientSerializer(data=patient_data)
 
-        user.delete()
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            if serializer.is_valid():
+                serializer.save()
 
+                return Response(
+                    {
+                        "message": "Patient registered successfully",
+                        "patient": serializer.data,
+                        "generated_password": random_password,
+                    },
+                    status=status.HTTP_201_CREATED
+                )
+
+            # rollback user if serializer fails
+            user.delete()
+
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+
+            return Response(
+                {
+                    "error": str(e)
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class PatientListAPIView(APIView):
     permission_classes = [IsAuthenticated, IsReceptionist]

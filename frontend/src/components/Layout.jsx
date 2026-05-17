@@ -64,8 +64,7 @@ export default function Layout({ children }) {
 
   const logout = async () => {
     try {
-      const refresh =
-        localStorage.getItem("refresh_token");
+      const refresh = localStorage.getItem("refresh_token");
 
       await api.post(
         "/accounts/auth/logout/",
@@ -79,7 +78,7 @@ export default function Layout({ children }) {
   };
 
   return (
-    <div className="flex w-full min-h-screen bg-gray-100 overflow-hidden">
+    <div className="min-h-screen bg-gray-100">
 
       {/* Sidebar */}
       <aside
@@ -95,6 +94,7 @@ export default function Layout({ children }) {
           flex-col
           transition-all
           duration-300
+          shadow-xl
           ${collapsed ? "w-16" : "w-64"}
         `}
       >
@@ -117,7 +117,7 @@ export default function Layout({ children }) {
           {!collapsed && (
             <div>
               <div
-                className="text-xl font-bold"
+                className="text-2xl font-bold"
                 style={{
                   fontFamily: "Georgia, serif",
                 }}
@@ -125,7 +125,7 @@ export default function Layout({ children }) {
                 Hospital
               </div>
 
-              <div className="text-[10px] text-teal-400 uppercase tracking-widest capitalize">
+              <div className="text-[10px] text-teal-300 uppercase tracking-widest">
                 {user.role} Portal
               </div>
             </div>
@@ -142,7 +142,7 @@ export default function Layout({ children }) {
               flex
               items-center
               justify-center
-              transition-colors
+              transition-all
             "
           >
             {collapsed ? "▶" : "◀"}
@@ -171,13 +171,14 @@ export default function Layout({ children }) {
               items-center
               justify-center
               font-bold
+              shrink-0
             ">
               {user.username?.[0]?.toUpperCase() || "U"}
             </div>
 
             {!collapsed && (
-              <div>
-                <div className="font-semibold text-sm">
+              <div className="overflow-hidden">
+                <div className="font-semibold text-sm truncate">
                   {user.username}
                 </div>
 
@@ -222,18 +223,18 @@ export default function Layout({ children }) {
 
                   ${
                     active
-                      ? "bg-teal-700 text-white"
-                      : "text-teal-200 hover:bg-teal-800 hover:text-white"
+                      ? "bg-teal-700 text-white shadow"
+                      : "text-teal-100 hover:bg-teal-800 hover:text-white"
                   }
                 `}
               >
 
-                <span className="text-lg">
+                <span className="text-lg shrink-0">
                   {link.icon}
                 </span>
 
                 {!collapsed && (
-                  <span>
+                  <span className="truncate">
                     {link.label}
                   </span>
                 )}
@@ -259,7 +260,7 @@ export default function Layout({ children }) {
               rounded-xl
               text-sm
               font-medium
-              text-teal-200
+              text-teal-100
               hover:bg-red-600
               hover:text-white
               transition-all
@@ -281,14 +282,14 @@ export default function Layout({ children }) {
 
       {/* Main Wrapper */}
       <div
-        className={`
-          flex-1
-          min-w-0
+        className="
           transition-all
           duration-300
           min-h-screen
-          ${collapsed ? "ml-16" : "ml-64"}
-        `}
+        "
+        style={{
+          marginLeft: collapsed ? "4rem" : "16rem",
+        }}
       >
 
         {/* Topbar */}
@@ -304,6 +305,7 @@ export default function Layout({ children }) {
           flex
           items-center
           justify-between
+          shadow-sm
         ">
 
           <div className="flex items-center gap-3">

@@ -1,27 +1,62 @@
 from rest_framework import serializers
 from .models import Patient, MedicalRecord, MedicalReport, Feedback, SupportTicket, Admission
+from django.contrib.auth import get_user_model
 
+User = get_user_model()
 
 class PatientSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(source='user.username', read_only=True)
-    email = serializers.EmailField(source='user.email', read_only=True)
+
+    user = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all()
+    )
+
+    username = serializers.CharField(
+        source='user.username',
+        read_only=True
+    )
+
+    email = serializers.EmailField(
+        source='user.email',
+        read_only=True
+    )
+
     full_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Patient
+
         fields = [
-            'id', 'patient_id', 'username', 'email', 'full_name',
-            'phone', 'address', 'age', 'gender',
-            'blood_group', 'emergency_contact', 'is_blocked',
-            'created_at', 'updated_at',
+            'id',
+            'user',
+            'patient_id',
+            'username',
+            'email',
+            'full_name',
+            'phone',
+            'address',
+            'age',
+            'gender',
+            'blood_group',
+            'emergency_contact',
+            'is_blocked',
+            'created_at',
+            'updated_at',
         ]
-        read_only_fields = ['id', 'patient_id', 'created_at', 'updated_at']
+
+        read_only_fields = [
+            'id',
+            'patient_id',
+            'username',
+            'email',
+            'full_name',
+            'created_at',
+            'updated_at',
+        ]
 
     def get_full_name(self, obj):
         name = f"{obj.user.first_name} {obj.user.last_name}".strip()
         return name or obj.user.username
-
-
+        
 class PatientUpdateSerializer(serializers.ModelSerializer):
     """For patient self-update or receptionist update — excludes identity fields."""
     class Meta:

@@ -1,4 +1,4 @@
-# Hospital Management
+Hospital Management
 
 This repository contains a hospital management backend and frontend project.
 

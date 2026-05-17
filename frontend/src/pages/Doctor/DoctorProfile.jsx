@@ -26,7 +26,7 @@ export default function DoctorProfile() {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/doctor/profile/");
+      const res = await api.get("/doctorapp/profile/");
       setProfile(res.data);
       setForm(res.data);
 

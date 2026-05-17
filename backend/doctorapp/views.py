@@ -8,6 +8,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
+from receptionist.models import CheckIn
+
+
 from patients.models import Patient
 from appointments.models import Appointment
 
@@ -89,30 +92,146 @@ class DoctorChangePasswordAPIView(APIView):
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
-
 class DoctorDashboardAPIView(APIView):
     permission_classes = [IsAuthenticated, IsDoctor]
 
     def get(self, request):
-        doctor = get_object_or_404(Doctor, user=request.user)
-        today = now().date()
 
-        today_appointments = Appointment.objects.filter(
-            doctor=doctor,
-            appointment_date=today
+        doctor = get_object_or_404(
+            Doctor.objects.select_related(
+                "user",
+                "department"
+            ),
+            user=request.user
         )
 
-        return Response({
-            "doctor_name": doctor.user.get_full_name() or doctor.user.username,
-            "department": doctor.department.name if doctor.department else None,
-            "today_appointments": today_appointments.count(),
-            "today_pending": today_appointments.exclude(status='Completed').count(),
-            "total_prescriptions": Prescription.objects.filter(doctor=doctor).count(),
-            "unique_patients": Appointment.objects.filter(
-                doctor=doctor
-            ).values('patient').distinct().count(),
-        })
+        today = now().date()
 
+        # =========================================
+        # Appointments
+        # =========================================
+        today_appointments = (
+            Appointment.objects
+            .filter(
+                doctor=doctor,
+                appointment_date=today
+            )
+            .select_related(
+                "patient__user"
+            )
+            .order_by("appointment_time")
+        )
+
+        total_appointments = Appointment.objects.filter(
+            doctor=doctor
+        )
+
+        # =========================================
+        # Stats
+        # =========================================
+        total_patients = (
+            Appointment.objects
+            .filter(doctor=doctor)
+            .values("patient")
+            .distinct()
+            .count()
+        )
+
+        total_prescriptions = Prescription.objects.filter(
+            doctor=doctor
+        ).count()
+
+        checked_in_count = CheckIn.objects.filter(
+            appointment__doctor=doctor,
+            appointment__appointment_date=today
+        ).count()
+
+        pending_count = today_appointments.exclude(
+            status="Completed"
+        ).count()
+
+        completed_count = today_appointments.filter(
+            status="Completed"
+        ).count()
+
+        # =========================================
+        # Appointment List
+        # =========================================
+        appointment_list = []
+
+        for appointment in today_appointments:
+
+            appointment_list.append({
+                "id": appointment.id,
+
+                "patient_name":
+                    appointment.patient.user.get_full_name()
+                    or appointment.patient.user.username,
+
+                "patient_id":
+                    appointment.patient.patient_id,
+
+                "time":
+                    appointment.appointment_time.strftime("%I:%M %p")
+                    if appointment.appointment_time else None,
+
+                "status":
+                    appointment.status,
+
+                "token":
+                    appointment.token_number,
+
+                "reason":
+                    appointment.reason,
+            })
+
+        # =========================================
+        # Response
+        # =========================================
+        return Response({
+
+            "doctor": {
+                "id": doctor.id,
+                "name":
+                    doctor.user.get_full_name()
+                    or doctor.user.username,
+
+                "department":
+                    doctor.department.name
+                    if doctor.department else None,
+
+                "specialization":
+                    getattr(doctor, "specialization", None),
+
+                "email":
+                    doctor.user.email,
+            },
+
+            "stats": {
+                "today_appointments":
+                    today_appointments.count(),
+
+                "today_pending":
+                    pending_count,
+
+                "today_completed":
+                    completed_count,
+
+                "checked_in":
+                    checked_in_count,
+
+                "total_appointments":
+                    total_appointments.count(),
+
+                "total_prescriptions":
+                    total_prescriptions,
+
+                "unique_patients":
+                    total_patients,
+            },
+
+            "today_list": appointment_list,
+        })
 
 # ── Appointments ──────────────────────────────────────────────────────────────
 
