@@ -12,7 +12,7 @@ export default function DoctorDashboard() {
   const [loading, setLoading] = useState(true);
 
   // =========================================
-  // Load Dashboard
+  // Fetch Dashboard
   // =========================================
   useEffect(() => {
     fetchDashboard();
@@ -51,10 +51,11 @@ export default function DoctorDashboard() {
   // Loading
   // =========================================
   if (loading) {
+
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="bg-white px-8 py-6 rounded-2xl shadow-sm border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-8 py-6">
             <p className="text-gray-600 text-lg">
               Loading dashboard...
             </p>
@@ -64,49 +65,60 @@ export default function DoctorDashboard() {
     );
   }
 
+  // =========================================
+  // Safe Data
+  // =========================================
   const doctor = data?.doctor || {};
+
   const stats = data?.stats || {};
+
   const appointments = data?.today_list || [];
 
+  // =========================================
+  // Stats Cards
+  // =========================================
   const statCards = [
     {
       label: "Today's Appointments",
-      value: stats.today_appointments || 0,
+      value: stats?.today_appointments ?? 0,
       icon: "📅",
       color: "bg-blue-600",
     },
     {
-      label: "Pending",
-      value: stats.today_pending || 0,
+      label: "Pending Today",
+      value: stats?.today_pending ?? 0,
       icon: "⏳",
       color: "bg-orange-500",
     },
     {
       label: "Completed",
-      value: stats.today_completed || 0,
+      value: stats?.today_completed ?? 0,
       icon: "✅",
       color: "bg-green-600",
     },
     {
       label: "Checked In",
-      value: stats.checked_in || 0,
+      value: stats?.checked_in ?? 0,
       icon: "🏥",
       color: "bg-purple-600",
     },
     {
-      label: "Patients",
-      value: stats.unique_patients || 0,
+      label: "Unique Patients",
+      value: stats?.unique_patients ?? 0,
       icon: "🧑‍⚕️",
       color: "bg-teal-600",
     },
     {
-      label: "Prescriptions",
-      value: stats.total_prescriptions || 0,
+      label: "Total Prescriptions",
+      value: stats?.total_prescriptions ?? 0,
       icon: "💊",
       color: "bg-pink-600",
     },
   ];
 
+  // =========================================
+  // Status Colors
+  // =========================================
   const statusColors = {
     Scheduled: "bg-yellow-100 text-yellow-700",
     Pending: "bg-orange-100 text-orange-700",
@@ -116,12 +128,13 @@ export default function DoctorDashboard() {
   };
 
   return (
+
     <Layout>
 
       <div className="space-y-6">
 
         {/* ========================================= */}
-        {/* Header Banner */}
+        {/* Welcome Banner */}
         {/* ========================================= */}
         <div className="bg-gradient-to-r from-blue-800 to-blue-700 rounded-2xl p-6 text-white flex items-center justify-between flex-wrap gap-4">
 
@@ -135,12 +148,13 @@ export default function DoctorDashboard() {
               className="text-3xl font-bold"
               style={{ fontFamily: "Georgia, serif" }}
             >
-              Dr. {doctor.name || "Doctor"}
+              Dr. {doctor?.name || "Doctor"}
             </h1>
 
             <p className="text-blue-200 text-sm mt-2">
-              {doctor.department || "Department"}
-              {doctor.specialization
+              {doctor?.department || "Department"}
+
+              {doctor?.specialization
                 ? ` • ${doctor.specialization}`
                 : ""}
             </p>
@@ -163,19 +177,12 @@ export default function DoctorDashboard() {
               Appointments
             </button>
 
-            <button
-              onClick={() => navigate("/doctor/patients")}
-              className="bg-white/20 hover:bg-white/30 border border-white/20 px-4 py-2 rounded-lg text-sm font-medium transition"
-            >
-              Patients
-            </button>
-
           </div>
 
         </div>
 
         {/* ========================================= */}
-        {/* Stat Cards */}
+        {/* Stats */}
         {/* ========================================= */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
 
@@ -183,7 +190,7 @@ export default function DoctorDashboard() {
 
             <div
               key={card.label}
-              className={`${card.color} text-white rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all hover:-translate-y-0.5`}
+              className={`${card.color} text-white rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all`}
             >
 
               <div className="text-3xl mb-3">
@@ -205,12 +212,11 @@ export default function DoctorDashboard() {
         </div>
 
         {/* ========================================= */}
-        {/* Today's Appointments */}
+        {/* Today Appointments */}
         {/* ========================================= */}
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
-          {/* Header */}
-          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
 
             <div>
 
@@ -219,21 +225,20 @@ export default function DoctorDashboard() {
               </h2>
 
               <p className="text-sm text-gray-500 mt-1">
-                {appointments.length} appointment(s) scheduled today
+                {appointments.length} appointment(s) today
               </p>
 
             </div>
 
             <button
               onClick={() => navigate("/doctor/appointments")}
-              className="text-sm font-medium text-blue-700 hover:text-blue-900"
+              className="text-blue-700 hover:text-blue-900 text-sm font-medium"
             >
               View All →
             </button>
 
           </div>
 
-          {/* Empty State */}
           {appointments.length === 0 ? (
 
             <div className="py-16 text-center text-gray-400">
@@ -243,7 +248,7 @@ export default function DoctorDashboard() {
               </div>
 
               <p className="text-lg">
-                No appointments scheduled today
+                No appointments today
               </p>
 
             </div>
@@ -265,13 +270,13 @@ export default function DoctorDashboard() {
                       "Time",
                       "Status",
                       "Reason",
-                    ].map((h) => (
+                    ].map((head) => (
 
                       <th
-                        key={h}
+                        key={head}
                         className="px-5 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
                       >
-                        {h}
+                        {head}
                       </th>
 
                     ))}
@@ -294,11 +299,11 @@ export default function DoctorDashboard() {
                       </td>
 
                       <td className="px-5 py-4 font-medium text-gray-800">
-                        {a.patient_name}
+                        {a.patient_name || "—"}
                       </td>
 
                       <td className="px-5 py-4 text-gray-500">
-                        {a.patient_id}
+                        {a.patient_id || "—"}
                       </td>
 
                       <td className="px-5 py-4 text-gray-600">
@@ -313,7 +318,7 @@ export default function DoctorDashboard() {
                             "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {a.status}
+                          {a.status || "Pending"}
                         </span>
 
                       </td>

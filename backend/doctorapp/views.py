@@ -1,7 +1,9 @@
 from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
+from django.utils.dateparse import parse_date
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Count, Q
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -9,107 +11,204 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
 from receptionist.models import CheckIn
-
-
 from patients.models import Patient
 from appointments.models import Appointment
 
 from .models import Doctor, Prescription
-from .serializers import DoctorSerializer, DoctorUpdateSerializer, PrescriptionSerializer
+from .serializers import (
+    DoctorUpdateSerializer,
+    PrescriptionSerializer
+)
 from .permissions import IsDoctor
 
 from core.utils import log_action
 
 
-def _doctor_profile_data(doctor):
-    """Shared helper to build doctor profile response dict."""
+# ──────────────────────────────────────────────────────────────────────────────
+# Shared Helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+def get_doctor(request):
+    return get_object_or_404(
+        Doctor.objects.select_related(
+            "user",
+            "department"
+        ),
+        user=request.user
+    )
+
+
+def doctor_profile_data(doctor):
     return {
         "id": doctor.id,
-        "username": doctor.user.username,
-        "email": doctor.user.email,
-        "department": doctor.department.name if doctor.department else None,
-        "specialization": doctor.specialization or "",
-        "license_no": doctor.license_no or "",
-        "qualification": doctor.qualification or "",
-        "years_of_experience": doctor.years_of_experience or 0,
-        "image": doctor.image.url if doctor.image else None,
-        "is_active": doctor.is_active,
+
+        "username":
+            doctor.user.username,
+
+        "full_name":
+            doctor.user.get_full_name()
+            or doctor.user.username,
+
+        "email":
+            doctor.user.email,
+
+        "department":
+            doctor.department.name
+            if doctor.department else None,
+
+        "specialization":
+            doctor.specialization or "",
+
+        "license_no":
+            doctor.license_no or "",
+
+        "qualification":
+            doctor.qualification or "",
+
+        "years_of_experience":
+            doctor.years_of_experience or 0,
+
+        "image":
+            doctor.image.url
+            if doctor.image else None,
+
+        "is_active":
+            doctor.is_active,
     }
 
 
-# ── Profile ───────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# Doctor Profile
+# ──────────────────────────────────────────────────────────────────────────────
 
 class DoctorProfileAPIView(APIView):
+
     permission_classes = [IsAuthenticated, IsDoctor]
 
     def get(self, request):
-        doctor = get_object_or_404(Doctor, user=request.user)
-        return Response(_doctor_profile_data(doctor))
+
+        doctor = get_doctor(request)
+
+        return Response({
+            "profile": doctor_profile_data(doctor)
+        })
 
     def put(self, request):
-        doctor = get_object_or_404(Doctor, user=request.user)
-        serializer = DoctorUpdateSerializer(doctor, data=request.data, partial=True)
+
+        doctor = get_doctor(request)
+
+        serializer = DoctorUpdateSerializer(
+            doctor,
+            data=request.data,
+            partial=True
+        )
 
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer.save()
-        log_action(actor=request.user, role='doctor', action='update', instance=doctor, request=request)
-        return Response(_doctor_profile_data(doctor))
-
-
-# ── Change Password ───────────────────────────────────────────────────────────
-
-class DoctorChangePasswordAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsDoctor]
-
-    def post(self, request):
-        user = request.user
-        old = request.data.get('old_password')
-        new = request.data.get('new_password')
-
-        if not old or not new:
             return Response(
-                {"error": "Both old_password and new_password are required."},
+                serializer.errors,
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if not user.check_password(old):
+        serializer.save()
+
+        log_action(
+            actor=request.user,
+            role="doctor",
+            action="update",
+            instance=doctor,
+            request=request
+        )
+
+        return Response({
+            "message": "Profile updated successfully.",
+            "profile": doctor_profile_data(doctor)
+        })
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Change Password
+# ──────────────────────────────────────────────────────────────────────────────
+
+class DoctorChangePasswordAPIView(APIView):
+
+    permission_classes = [IsAuthenticated, IsDoctor]
+
+    def post(self, request):
+
+        user = request.user
+
+        old_password = request.data.get("old_password")
+        new_password = request.data.get("new_password")
+
+        if not old_password or not new_password:
+
             return Response(
-                {"old_password": "Incorrect password."},
+                {
+                    "error":
+                        "Both old_password and new_password are required."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not user.check_password(old_password):
+
+            return Response(
+                {
+                    "old_password":
+                        "Incorrect password."
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
-            validate_password(new, user)
+
+            validate_password(new_password, user)
+
         except DjangoValidationError as e:
-            return Response({"new_password": list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
 
-        user.set_password(new)
+            return Response(
+                {
+                    "new_password": list(e.messages)
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.set_password(new_password)
+
         user.save()
-        log_action(actor=request.user, role='doctor', action='update', instance=user, request=request)
-        return Response({"message": "Password changed successfully."})
+
+        log_action(
+            actor=request.user,
+            role="doctor",
+            action="update",
+            instance=user,
+            request=request
+        )
+
+        return Response({
+            "message": "Password changed successfully."
+        })
 
 
-# ── Dashboard ─────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# Doctor Dashboard
+# ──────────────────────────────────────────────────────────────────────────────
+
 class DoctorDashboardAPIView(APIView):
+
     permission_classes = [IsAuthenticated, IsDoctor]
 
     def get(self, request):
 
-        doctor = get_object_or_404(
-            Doctor.objects.select_related(
-                "user",
-                "department"
-            ),
-            user=request.user
-        )
+        doctor = get_doctor(request)
 
         today = now().date()
 
         # =========================================
-        # Appointments
+        # Today's Appointments
         # =========================================
+
         today_appointments = (
             Appointment.objects
             .filter(
@@ -122,14 +221,45 @@ class DoctorDashboardAPIView(APIView):
             .order_by("appointment_time")
         )
 
-        total_appointments = Appointment.objects.filter(
-            doctor=doctor
+        # =========================================
+        # Aggregated Stats
+        # =========================================
+
+        stats = today_appointments.aggregate(
+
+            total=Count("id"),
+
+            completed=Count(
+                "id",
+                filter=Q(
+                    status=Appointment.STATUS_COMPLETED
+                )
+            ),
+
+            pending=Count(
+                "id",
+                filter=~Q(
+                    status=Appointment.STATUS_COMPLETED
+                )
+            ),
         )
 
-        # =========================================
-        # Stats
-        # =========================================
-        total_patients = (
+        checked_in_count = (
+            CheckIn.objects
+            .filter(
+                appointment__doctor=doctor,
+                appointment__appointment_date=today
+            )
+            .count()
+        )
+
+        total_prescriptions = (
+            Prescription.objects
+            .filter(doctor=doctor)
+            .count()
+        )
+
+        unique_patients = (
             Appointment.objects
             .filter(doctor=doctor)
             .values("patient")
@@ -137,32 +267,21 @@ class DoctorDashboardAPIView(APIView):
             .count()
         )
 
-        total_prescriptions = Prescription.objects.filter(
-            doctor=doctor
-        ).count()
-
-        checked_in_count = CheckIn.objects.filter(
-            appointment__doctor=doctor,
-            appointment__appointment_date=today
-        ).count()
-
-        pending_count = today_appointments.exclude(
-            status="Completed"
-        ).count()
-
-        completed_count = today_appointments.filter(
-            status="Completed"
-        ).count()
+        total_appointments = (
+            Appointment.objects
+            .filter(doctor=doctor)
+            .count()
+        )
 
         # =========================================
         # Appointment List
         # =========================================
-        appointment_list = []
 
-        for appointment in today_appointments:
+        appointment_list = [
 
-            appointment_list.append({
-                "id": appointment.id,
+            {
+                "id":
+                    appointment.id,
 
                 "patient_name":
                     appointment.patient.user.get_full_name()
@@ -183,15 +302,22 @@ class DoctorDashboardAPIView(APIView):
 
                 "reason":
                     appointment.reason,
-            })
+            }
+
+            for appointment in today_appointments
+        ]
 
         # =========================================
         # Response
         # =========================================
+
         return Response({
 
             "doctor": {
-                "id": doctor.id,
+
+                "id":
+                    doctor.id,
+
                 "name":
                     doctor.user.get_full_name()
                     or doctor.user.username,
@@ -201,248 +327,558 @@ class DoctorDashboardAPIView(APIView):
                     if doctor.department else None,
 
                 "specialization":
-                    getattr(doctor, "specialization", None),
+                    doctor.specialization or "",
 
                 "email":
                     doctor.user.email,
             },
 
             "stats": {
-                "today_appointments":
-                    today_appointments.count(),
 
-                "today_pending":
-                    pending_count,
+                "today_appointments":
+                    stats["total"],
 
                 "today_completed":
-                    completed_count,
+                    stats["completed"],
+
+                "today_pending":
+                    stats["pending"],
 
                 "checked_in":
                     checked_in_count,
 
                 "total_appointments":
-                    total_appointments.count(),
+                    total_appointments,
 
                 "total_prescriptions":
                     total_prescriptions,
 
                 "unique_patients":
-                    total_patients,
+                    unique_patients,
             },
 
-            "today_list": appointment_list,
+            "today_list":
+                appointment_list,
         })
 
-# ── Appointments ──────────────────────────────────────────────────────────────
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Appointments By Date
+# ──────────────────────────────────────────────────────────────────────────────
 
 class DoctorAppointmentsByDateAPIView(APIView):
+
     permission_classes = [IsAuthenticated, IsDoctor]
 
     def get(self, request):
-        doctor = get_object_or_404(Doctor, user=request.user)
-        date_param = request.query_params.get('date')
+
+        doctor = get_doctor(request)
+
+        date_param = request.query_params.get("date")
 
         try:
-            from django.utils.dateparse import parse_date
-            selected_date = parse_date(date_param) if date_param else now().date()
+
+            selected_date = (
+                parse_date(date_param)
+                if date_param else now().date()
+            )
+
             if not selected_date:
                 raise ValueError
+
         except (ValueError, TypeError):
+
             return Response(
-                {"error": "Invalid date format. Use YYYY-MM-DD."},
+                {
+                    "error":
+                        "Invalid date format. Use YYYY-MM-DD."
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         appointments = (
             Appointment.objects
-            .filter(doctor=doctor, appointment_date=selected_date)
-            .select_related('patient', 'patient__user')
-            .order_by('appointment_time')
+            .filter(
+                doctor=doctor,
+                appointment_date=selected_date
+            )
+            .select_related(
+                "patient__user"
+            )
+            .order_by("appointment_time")
         )
 
-        # Resolve prescriptions in a single query — no N+1
-        patient_ids_with_rx = set(
+        patient_ids_with_prescriptions = set(
+
             Prescription.objects
-            .filter(doctor=doctor, patient__in=[a.patient for a in appointments if a.patient])
-            .values_list('patient_id', flat=True)
+            .filter(
+                doctor=doctor,
+                patient__in=[
+                    a.patient
+                    for a in appointments
+                    if a.patient
+                ]
+            )
+            .values_list(
+                "patient_id",
+                flat=True
+            )
         )
 
         results = [
+
             {
-                "id": a.id,
-                "appointment_time": a.appointment_time,
-                "patient_pk": a.patient.id if a.patient else None,
-                "patient_name": a.patient.user.username if a.patient else "",
-                "patient_code": a.patient.patient_id if a.patient else "",
-                "token_number": a.token_number,
-                "reason": a.reason,
-                "status": a.status,
-                "has_prescription": (a.patient_id in patient_ids_with_rx) if a.patient else False,
+                "id":
+                    appointment.id,
+
+                "appointment_time":
+                    appointment.appointment_time,
+
+                "patient_pk":
+                    appointment.patient.id
+                    if appointment.patient else None,
+
+                "patient_name":
+                    appointment.patient.user.get_full_name()
+                    or appointment.patient.user.username
+                    if appointment.patient else "",
+
+                "patient_code":
+                    appointment.patient.patient_id
+                    if appointment.patient else "",
+
+                "token_number":
+                    appointment.token_number,
+
+                "reason":
+                    appointment.reason,
+
+                "status":
+                    appointment.status,
+
+                "has_prescription":
+                    (
+                        appointment.patient_id
+                        in patient_ids_with_prescriptions
+                    )
+                    if appointment.patient else False,
             }
-            for a in appointments
+
+            for appointment in appointments
         ]
 
-        return Response({"date": str(selected_date), "count": len(results), "results": results})
+        return Response({
 
+            "date":
+                str(selected_date),
+
+            "count":
+                len(results),
+
+            "results":
+                results,
+        })
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Complete Appointment
+# ──────────────────────────────────────────────────────────────────────────────
 
 class DoctorCompleteAppointmentAPIView(APIView):
+
     permission_classes = [IsAuthenticated, IsDoctor]
 
     def post(self, request, pk):
-        doctor = get_object_or_404(Doctor, user=request.user)
-        appointment = get_object_or_404(Appointment, pk=pk, doctor=doctor)
 
-        if appointment.status == 'Completed':
+        doctor = get_doctor(request)
+
+        appointment = get_object_or_404(
+            Appointment,
+            pk=pk,
+            doctor=doctor
+        )
+
+        if appointment.status == Appointment.STATUS_COMPLETED:
+
             return Response(
-                {"error": "Appointment is already completed."},
+                {
+                    "error":
+                        "Appointment already completed."
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        appointment.status = 'Completed'  # matches Appointment.STATUS_CHOICES
-        appointment.save(update_fields=['status'])
-        log_action(actor=request.user, role='doctor', action='update', instance=appointment, request=request)
-        return Response({"id": appointment.id, "status": appointment.status})
+        appointment.status = Appointment.STATUS_COMPLETED
 
+        appointment.save(update_fields=["status"])
 
-class DoctorPastAppointmentsAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsDoctor]
-
-    def get(self, request):
-        doctor = get_object_or_404(Doctor, user=request.user)
-
-        appointments = (
-            Appointment.objects
-            .filter(doctor=doctor, status='Completed')
-            .select_related('patient', 'patient__user')
-            .order_by('-appointment_date')
+        log_action(
+            actor=request.user,
+            role="doctor",
+            action="update",
+            instance=appointment,
+            request=request
         )
 
         return Response({
-            "count": appointments.count(),
-            "results": [
-                {
-                    "id": a.id,
-                    "date": a.appointment_date,
-                    "time": a.appointment_time,
-                    "patient_pk": a.patient.id if a.patient else None,
-                    "patient": a.patient.user.username if a.patient else "",
-                    "token": a.token_number,
-                    "reason": a.reason,
-                }
-                for a in appointments
-            ],
+
+            "message":
+                "Appointment completed successfully.",
+
+            "appointment": {
+
+                "id":
+                    appointment.id,
+
+                "status":
+                    appointment.status,
+            }
         })
 
 
-# ── Patient Profile (doctor view) ─────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# Past Appointments
+# ──────────────────────────────────────────────────────────────────────────────
+
+class DoctorPastAppointmentsAPIView(APIView):
+
+    permission_classes = [IsAuthenticated, IsDoctor]
+
+    def get(self, request):
+
+        doctor = get_doctor(request)
+
+        appointments = (
+            Appointment.objects
+            .filter(
+                doctor=doctor,
+                status=Appointment.STATUS_COMPLETED
+            )
+            .select_related(
+                "patient__user"
+            )
+            .order_by("-appointment_date")
+        )
+
+        return Response({
+
+            "count":
+                appointments.count(),
+
+            "results": [
+
+                {
+                    "id":
+                        appointment.id,
+
+                    "date":
+                        appointment.appointment_date,
+
+                    "time":
+                        appointment.appointment_time,
+
+                    "patient_pk":
+                        appointment.patient.id
+                        if appointment.patient else None,
+
+                    "patient_name":
+                        appointment.patient.user.get_full_name()
+                        or appointment.patient.user.username
+                        if appointment.patient else "",
+
+                    "token":
+                        appointment.token_number,
+
+                    "reason":
+                        appointment.reason,
+                }
+
+                for appointment in appointments
+            ]
+        })
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Doctor Patient Profile
+# ──────────────────────────────────────────────────────────────────────────────
 
 class DoctorPatientProfileAPIView(APIView):
+
     permission_classes = [IsAuthenticated, IsDoctor]
 
     def get(self, request, pk):
-        doctor = get_object_or_404(Doctor, user=request.user)
-        patient = get_object_or_404(Patient, id=pk)
 
-        # Only allow if doctor has had at least one appointment with this patient
-        if not Appointment.objects.filter(doctor=doctor, patient=patient).exists():
+        doctor = get_doctor(request)
+
+        patient = get_object_or_404(
+            Patient.objects.select_related("user"),
+            id=pk
+        )
+
+        has_access = Appointment.objects.filter(
+            doctor=doctor,
+            patient=patient
+        ).exists()
+
+        if not has_access:
+
             return Response(
-                {"error": "You do not have access to this patient's profile."},
+                {
+                    "error":
+                        "You do not have access to this patient."
+                },
                 status=status.HTTP_403_FORBIDDEN
             )
 
         appointments = (
             Appointment.objects
-            .filter(doctor=doctor, patient=patient)
-            .order_by('-appointment_date')
+            .filter(
+                doctor=doctor,
+                patient=patient
+            )
+            .order_by("-appointment_date")
         )
+
         prescriptions = (
             Prescription.objects
-            .filter(doctor=doctor, patient=patient)
-            .order_by('-date')
+            .filter(
+                doctor=doctor,
+                patient=patient
+            )
+            .order_by("-date")
         )
 
         return Response({
+
             "patient": {
-                "id": patient.id,
-                "patient_id": patient.patient_id,
-                "name": patient.user.get_full_name() or patient.user.username,
-                "email": patient.user.email,
+
+                "id":
+                    patient.id,
+
+                "patient_id":
+                    patient.patient_id,
+
+                "name":
+                    patient.user.get_full_name()
+                    or patient.user.username,
+
+                "email":
+                    patient.user.email,
             },
+
             "appointments": [
+
                 {
-                    "id": a.id,
-                    "date": a.appointment_date,
-                    "time": a.appointment_time,
-                    "reason": a.reason,
-                    "status": a.status,
-                    "token": a.token_number,
+                    "id":
+                        appointment.id,
+
+                    "date":
+                        appointment.appointment_date,
+
+                    "time":
+                        appointment.appointment_time,
+
+                    "reason":
+                        appointment.reason,
+
+                    "status":
+                        appointment.status,
+
+                    "token":
+                        appointment.token_number,
                 }
-                for a in appointments
+
+                for appointment in appointments
             ],
-            "prescriptions": PrescriptionSerializer(prescriptions, many=True).data,
+
+            "prescriptions":
+                PrescriptionSerializer(
+                    prescriptions,
+                    many=True
+                ).data,
         })
 
 
-# ── Prescriptions ─────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# Prescription List & Create
+# ──────────────────────────────────────────────────────────────────────────────
 
 class PrescriptionListCreateAPIView(APIView):
+
     permission_classes = [IsAuthenticated, IsDoctor]
 
     def get(self, request):
-        doctor = get_object_or_404(Doctor, user=request.user)
+
+        doctor = get_doctor(request)
+
         prescriptions = (
             Prescription.objects
             .filter(doctor=doctor)
-            .select_related('patient', 'patient__user')
-            .order_by('-date')
+            .select_related(
+                "patient__user"
+            )
+            .order_by("-date")
         )
-        return Response(PrescriptionSerializer(prescriptions, many=True).data)
+
+        return Response(
+            PrescriptionSerializer(
+                prescriptions,
+                many=True
+            ).data
+        )
 
     def post(self, request):
-        doctor = get_object_or_404(Doctor, user=request.user)
 
-        patient_id = request.data.get('patient')
+        doctor = get_doctor(request)
+
+        patient_id = request.data.get("patient")
+
         if not patient_id:
-            return Response({"patient": "This field is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        patient = get_object_or_404(Patient, id=patient_id)
-
-        # Doctor can only prescribe to their own patients
-        if not Appointment.objects.filter(doctor=doctor, patient=patient).exists():
             return Response(
-                {"error": "You can only prescribe to patients you have seen."},
+                {
+                    "patient":
+                        "This field is required."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        patient = get_object_or_404(
+            Patient,
+            id=patient_id
+        )
+
+        has_access = Appointment.objects.filter(
+            doctor=doctor,
+            patient=patient
+        ).exists()
+
+        if not has_access:
+
+            return Response(
+                {
+                    "error":
+                        "You can only prescribe to your own patients."
+                },
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = PrescriptionSerializer(data=request.data)
-        if serializer.is_valid():
-            prescription = serializer.save(doctor=doctor)
-            log_action(actor=request.user, role='doctor', action='create', instance=prescription, request=request)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        data = request.data.copy()
 
+        data.pop("doctor", None)
+
+        serializer = PrescriptionSerializer(data=data)
+
+        if not serializer.is_valid():
+
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        prescription = serializer.save(
+            doctor=doctor
+        )
+
+        log_action(
+            actor=request.user,
+            role="doctor",
+            action="create",
+            instance=prescription,
+            request=request
+        )
+
+        return Response(
+            PrescriptionSerializer(
+                prescription
+            ).data,
+            status=status.HTTP_201_CREATED
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Prescription Detail
+# ──────────────────────────────────────────────────────────────────────────────
 
 class PrescriptionDetailAPIView(APIView):
+
     permission_classes = [IsAuthenticated, IsDoctor]
 
     def get(self, request, pk):
-        doctor = get_object_or_404(Doctor, user=request.user)
-        prescription = get_object_or_404(Prescription, pk=pk, doctor=doctor)
-        return Response(PrescriptionSerializer(prescription).data)
+
+        doctor = get_doctor(request)
+
+        prescription = get_object_or_404(
+            Prescription,
+            pk=pk,
+            doctor=doctor
+        )
+
+        return Response(
+            PrescriptionSerializer(
+                prescription
+            ).data
+        )
 
     def patch(self, request, pk):
-        doctor = get_object_or_404(Doctor, user=request.user)
-        prescription = get_object_or_404(Prescription, pk=pk, doctor=doctor)
-        serializer = PrescriptionSerializer(prescription, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            log_action(actor=request.user, role='doctor', action='update', instance=prescription, request=request)
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        doctor = get_doctor(request)
+
+        prescription = get_object_or_404(
+            Prescription,
+            pk=pk,
+            doctor=doctor
+        )
+
+        serializer = PrescriptionSerializer(
+            prescription,
+            data=request.data,
+            partial=True
+        )
+
+        if not serializer.is_valid():
+
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer.save()
+
+        log_action(
+            actor=request.user,
+            role="doctor",
+            action="update",
+            instance=prescription,
+            request=request
+        )
+
+        return Response(serializer.data)
 
     def delete(self, request, pk):
-        doctor = get_object_or_404(Doctor, user=request.user)
-        prescription = get_object_or_404(Prescription, pk=pk, doctor=doctor)
-        log_action(actor=request.user, role='doctor', action='delete', instance=prescription, request=request)
+
+        doctor = get_doctor(request)
+
+        prescription = get_object_or_404(
+            Prescription,
+            pk=pk,
+            doctor=doctor
+        )
+
+        log_action(
+            actor=request.user,
+            role="doctor",
+            action="delete",
+            instance=prescription,
+            request=request
+        )
+
         prescription.delete()
-        return Response({"message": "Prescription deleted."}, status=status.HTTP_204_NO_CONTENT)
+
+        return Response(
+            {
+                "message":
+                    "Prescription deleted successfully."
+            },
+            status=status.HTTP_204_NO_CONTENT
+        )

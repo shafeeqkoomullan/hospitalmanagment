@@ -2,6 +2,10 @@ from django.db import models
 
 
 class Appointment(models.Model):
+    STATUS_PENDING = "Pending"
+    STATUS_COMPLETED = "Completed"
+    STATUS_CANCELLED = "Cancelled"
+    
     STATUS_CHOICES = [
         ('Scheduled', 'Scheduled'),
         ('Checked In', 'Checked In'),
