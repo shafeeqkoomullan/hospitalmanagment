@@ -17,6 +17,9 @@ const NAV_LINKS = {
     { label: "Create Appointment", path: "/receptionist/appointments/create", icon: "➕" },
     { label: "Walk-In", path: "/receptionist/walkin", icon: "🚶" },
     { label: "Visitor Log", path: "/receptionist/visitors", icon: "📋" },
+    { label: "Billing Dashboard" , path: "/receptionist/billing", icon: "💳" },
+    { label: "Bills" , path: "/receptionist/bills", icon: "🧾" },
+    { label: "payments",path: "/receptionist/payments", icon: "💰" },
   ],
 
   patient: [
@@ -37,6 +40,9 @@ const NAV_LINKS = {
     { label: "Appointments", path: "/admin/appointments", icon: "📅" },
     { label: "Departments", path: "/admin/departments", icon: "🏥" },
     { label: "Activity Logs", path: "/admin/logs", icon: "📊" },
+    { label: "Billing Dashboard", path: "/admin/billing", icon: "💳" },
+    { label: "Bills", path: "/admin/bills", icon: "🧾" },
+    { label: "Payments", path: "/admin/payments", icon: "💰" },
   ],
 };
 

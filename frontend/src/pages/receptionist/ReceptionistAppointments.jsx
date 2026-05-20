@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import Layout from "../../components/Layout";
+import Select from "react-select";
 
 export default function ReceptionistAppointments() {
   const navigate = useNavigate();

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Select from "react-select";
+
 import api from "../../api/axios";
 import Layout from "../../components/Layout";
 
@@ -7,56 +9,70 @@ export default function ReceptionistCreateAppointment() {
 
   const navigate = useNavigate();
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date()
+    .toISOString()
+    .slice(0, 10);
 
   const [patients, setPatients] = useState([]);
+
   const [doctors, setDoctors] = useState([]);
 
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
+
     patient: "",
+
     doctor: "",
+
     appointment_date: todayStr,
+
     appointment_time: "",
+
     reason: "",
+
   });
 
   // =========================================
   // Load Patients & Doctors
   // =========================================
+
   useEffect(() => {
+
     fetchData();
+
   }, []);
 
   const fetchData = async () => {
 
     try {
 
-      const [patientRes, doctorRes] = await Promise.all([
-        api.get("/receptionist/patients/"),
-        api.get("/receptionist/doctors/"),
-      ]);
+      const [patientRes, doctorRes] =
+        await Promise.all([
 
-      console.log("Patients:", patientRes.data);
-      console.log("Doctors:", doctorRes.data);
+          api.get("/receptionist/patients/"),
+
+          api.get("/receptionist/doctors/"),
+
+        ]);
 
       setPatients(patientRes.data || []);
+
       setDoctors(doctorRes.data || []);
 
     } catch (err) {
 
-      console.log("Fetch Error:", err);
-      console.log("Response:", err?.response);
-      console.log("Data:", err?.response?.data);
+      console.log(err);
 
       alert("Failed to load form data");
+
     }
   };
 
   // =========================================
   // Submit Appointment
   // =========================================
+
   const handleSubmit = async (e) => {
 
     e.preventDefault();
@@ -67,7 +83,9 @@ export default function ReceptionistCreateAppointment() {
       !form.appointment_date ||
       !form.appointment_time
     ) {
+
       alert("Please fill all required fields");
+
       return;
     }
 
@@ -88,9 +106,7 @@ export default function ReceptionistCreateAppointment() {
 
     } catch (err) {
 
-      console.log("Submit Error:", err);
-      console.log("Response:", err?.response);
-      console.log("Data:", err?.response?.data);
+      console.log(err);
 
       alert(
         err?.response?.data?.detail ||
@@ -100,135 +116,313 @@ export default function ReceptionistCreateAppointment() {
     } finally {
 
       setLoading(false);
+
     }
   };
 
+  // =========================================
+  // React Select Styles
+  // =========================================
+
+  const selectStyles = {
+
+    control: (base, state) => ({
+
+      ...base,
+
+      borderRadius: "0.75rem",
+
+      minHeight: "52px",
+
+      borderColor: state.isFocused
+        ? "#0f766e"
+        : "#d1d5db",
+
+      boxShadow: "none",
+
+      "&:hover": {
+
+        borderColor: "#0f766e",
+
+      },
+
+    }),
+
+    option: (base, state) => ({
+
+      ...base,
+
+      backgroundColor: state.isFocused
+        ? "#ccfbf1"
+        : "white",
+
+      color: "#111827",
+
+      cursor: "pointer",
+
+    }),
+
+    menu: (base) => ({
+
+      ...base,
+
+      zIndex: 9999,
+
+    }),
+
+  };
+
   return (
+
     <Layout>
 
-      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-md border border-gray-100 p-8">
+      <div className="
+        max-w-4xl
+        mx-auto
+        bg-white
+        rounded-2xl
+        shadow-md
+        border
+        border-gray-100
+        p-8
+      ">
 
         {/* Header */}
+
         <div className="mb-8">
 
-          <h1 className="text-3xl font-bold text-gray-800">
+          <h1 className="
+            text-3xl
+            font-bold
+            text-gray-800
+          ">
+
             Create Appointment
+
           </h1>
 
-          <p className="text-gray-500 mt-2">
+          <p className="
+            text-gray-500
+            mt-2
+          ">
+
             Schedule a new appointment for a patient
+
           </p>
 
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6"
+        >
 
           {/* Patient + Doctor */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+          <div className="
+            grid
+            grid-cols-1
+            md:grid-cols-2
+            gap-5
+          ">
 
             {/* Patient */}
+
             <div>
 
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="
+                block
+                text-sm
+                font-semibold
+                text-gray-700
+                mb-2
+              ">
+
                 Select Patient
+
               </label>
 
-              <select
-                value={form.patient}
-                onChange={(e) =>
+              <Select
+
+                options={patients.map((p) => ({
+
+                  value: p.id,
+
+                  label: `${
+                    p.full_name ||
+                    p.username ||
+                    p.user?.username ||
+                    "Unknown Patient"
+                  }${
+                    p.patient_id
+                      ? ` — ${p.patient_id}`
+                      : ""
+                  }`,
+
+                }))}
+
+                value={
+                  patients
+                    .map((p) => ({
+
+                      value: p.id,
+
+                      label: `${
+                        p.full_name ||
+                        p.username ||
+                        p.user?.username ||
+                        "Unknown Patient"
+                      }${
+                        p.patient_id
+                          ? ` — ${p.patient_id}`
+                          : ""
+                      }`,
+
+                    }))
+                    .find(
+                      (option) =>
+                        String(option.value) ===
+                        String(form.patient)
+                    ) || null
+                }
+
+                onChange={(selected) =>
                   setForm({
                     ...form,
-                    patient: e.target.value,
+                    patient: selected?.value || "",
                   })
                 }
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-teal-600"
-              >
 
-                <option value="">
-                  Choose Patient
-                </option>
+                placeholder="
+                  Search patient by name or ID...
+                "
 
-                {patients.map((p) => (
+                isSearchable
 
-                  <option key={p.id} value={p.id}>
+                noOptionsMessage={() =>
+                  "No patients found"
+                }
 
-                    {(p.full_name ||
-                      p.username ||
-                      p.user?.username ||
-                      "Unknown Patient")}
+                styles={selectStyles}
 
-                    {p.patient_id
-                      ? ` — ${p.patient_id}`
-                      : ""}
-
-                  </option>
-
-                ))}
-
-              </select>
+              />
 
             </div>
 
             {/* Doctor */}
+
             <div>
 
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="
+                block
+                text-sm
+                font-semibold
+                text-gray-700
+                mb-2
+              ">
+
                 Select Doctor
+
               </label>
 
-              <select
-                value={form.doctor}
-                onChange={(e) =>
+              <Select
+
+                options={doctors.map((d) => ({
+
+                  value: d.id,
+
+                  label: `Dr. ${
+                    d.full_name ||
+                    d.username ||
+                    d.user?.username ||
+                    d.email ||
+                    "Unknown Doctor"
+                  } — ${
+                    d.specialization ||
+                    d.department_name ||
+                    d.department?.name ||
+                    "General"
+                  }`,
+
+                }))}
+
+                value={
+                  doctors
+                    .map((d) => ({
+
+                      value: d.id,
+
+                      label: `Dr. ${
+                        d.full_name ||
+                        d.username ||
+                        d.user?.username ||
+                        d.email ||
+                        "Unknown Doctor"
+                      } — ${
+                        d.specialization ||
+                        d.department_name ||
+                        d.department?.name ||
+                        "General"
+                      }`,
+
+                    }))
+                    .find(
+                      (option) =>
+                        String(option.value) ===
+                        String(form.doctor)
+                    ) || null
+                }
+
+                onChange={(selected) =>
                   setForm({
                     ...form,
-                    doctor: e.target.value,
+                    doctor: selected?.value || "",
                   })
                 }
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-teal-600"
-              >
 
-                <option value="">
-                  Choose Doctor
-                </option>
+                placeholder="
+                  Search doctor or specialization...
+                "
 
-                {doctors.map((d) => (
+                isSearchable
 
-                  <option key={d.id} value={d.id}>
+                noOptionsMessage={() =>
+                  "No doctors found"
+                }
 
-                    Dr.{" "}
+                styles={selectStyles}
 
-                    {d.full_name ||
-                      d.username ||
-                      d.user?.username ||
-                      d.email ||
-                      "Unknown Doctor"}
-
-                    {" — "}
-
-                    {d.specialization ||
-                      d.department_name ||
-                      d.department?.name ||
-                      "General"}
-
-                  </option>
-
-                ))}
-
-              </select>
+              />
 
             </div>
 
           </div>
 
           {/* Date + Time */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+          <div className="
+            grid
+            grid-cols-1
+            md:grid-cols-2
+            gap-5
+          ">
 
             {/* Date */}
+
             <div>
 
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="
+                block
+                text-sm
+                font-semibold
+                text-gray-700
+                mb-2
+              ">
+
                 Appointment Date
+
               </label>
 
               <input
@@ -238,19 +432,39 @@ export default function ReceptionistCreateAppointment() {
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    appointment_date: e.target.value,
+                    appointment_date:
+                      e.target.value,
                   })
                 }
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-600"
+                className="
+                  w-full
+                  border
+                  border-gray-300
+                  rounded-xl
+                  px-4
+                  py-3
+                  focus:outline-none
+                  focus:ring-2
+                  focus:ring-teal-600
+                "
               />
 
             </div>
 
             {/* Time */}
+
             <div>
 
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="
+                block
+                text-sm
+                font-semibold
+                text-gray-700
+                mb-2
+              ">
+
                 Appointment Time
+
               </label>
 
               <input
@@ -259,10 +473,21 @@ export default function ReceptionistCreateAppointment() {
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    appointment_time: e.target.value,
+                    appointment_time:
+                      e.target.value,
                   })
                 }
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-600"
+                className="
+                  w-full
+                  border
+                  border-gray-300
+                  rounded-xl
+                  px-4
+                  py-3
+                  focus:outline-none
+                  focus:ring-2
+                  focus:ring-teal-600
+                "
               />
 
             </div>
@@ -270,10 +495,19 @@ export default function ReceptionistCreateAppointment() {
           </div>
 
           {/* Reason */}
+
           <div>
 
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="
+              block
+              text-sm
+              font-semibold
+              text-gray-700
+              mb-2
+            ">
+
               Reason for Appointment
+
             </label>
 
             <textarea
@@ -285,33 +519,78 @@ export default function ReceptionistCreateAppointment() {
                   reason: e.target.value,
                 })
               }
-              placeholder="Describe symptoms or appointment reason..."
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-teal-600"
+              placeholder="
+                Describe symptoms or appointment reason...
+              "
+              className="
+                w-full
+                border
+                border-gray-300
+                rounded-xl
+                px-4
+                py-3
+                resize-none
+                focus:outline-none
+                focus:ring-2
+                focus:ring-teal-600
+              "
             />
 
           </div>
 
           {/* Buttons */}
-          <div className="flex flex-wrap items-center gap-4 pt-2">
+
+          <div className="
+            flex
+            flex-wrap
+            items-center
+            gap-4
+            pt-2
+          ">
 
             <button
               type="submit"
               disabled={loading}
-              className="bg-teal-700 hover:bg-teal-800 text-white px-6 py-3 rounded-xl font-medium transition disabled:opacity-50"
+              className="
+                bg-teal-700
+                hover:bg-teal-800
+                text-white
+                px-6
+                py-3
+                rounded-xl
+                font-medium
+                transition
+                disabled:opacity-50
+              "
             >
+
               {loading
                 ? "Creating Appointment..."
                 : "Create Appointment"}
+
             </button>
 
             <button
               type="button"
               onClick={() =>
-                navigate("/receptionist/appointments")
+                navigate(
+                  "/receptionist/appointments"
+                )
               }
-              className="border border-gray-300 hover:bg-gray-100 px-6 py-3 rounded-xl font-medium transition"
+              className="
+                border
+                border-gray-300
+                hover:bg-gray-100
+                px-6
+                py-3
+                rounded-xl
+                font-medium
+                transition
+              "
             >
+
               Cancel
+
             </button>
 
           </div>
@@ -321,5 +600,6 @@ export default function ReceptionistCreateAppointment() {
       </div>
 
     </Layout>
+
   );
 }

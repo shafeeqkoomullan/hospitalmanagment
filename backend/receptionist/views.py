@@ -3,6 +3,7 @@ from django.utils.dateparse import parse_date
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from collections import defaultdict
 
 import secrets
 from rest_framework.views import APIView
@@ -41,19 +42,148 @@ User = get_user_model()
 
 # ── Dashboard ─────────────────────────────────────────
 
+
 class ReceptionistDashboardAPIView(APIView):
+
     permission_classes = [IsAuthenticated, IsReceptionist]
 
+
     def get(self, request):
+
         today = timezone.now().date()
+
+        # ============================================
+        # Base Query
+        # ============================================
+
+        today_appointments = Appointment.objects.filter(
+            appointment_date=today
+        ).select_related(
+            "patient__user",
+            "doctor__user",
+        )
+        
+        print(today_appointments.values_list("status", flat=True))
+
+        # ============================================
+        # Queue Appointments
+        # ============================================
+
+        queue_appointments = today_appointments.filter(
+            status__in=[
+                "Scheduled",
+                "Checked In",
+            ]
+        ).order_by(
+            "doctor",
+            "appointment_time",
+        )
+
+        # ============================================
+        # Completed Consultations
+        # ============================================
+
+        completed_appointments = today_appointments.filter(
+            status="Completed"
+        ).order_by("-appointment_time")
+
+        # ============================================
+        # Doctor-Based Queue
+        # ============================================
+
+        doctor_queues = defaultdict(list)
+
+        for ap in queue_appointments:
+
+            doctor_name = (
+                ap.doctor.user.get_full_name()
+                or ap.doctor.user.username
+            )
+
+            patient_name = (
+                ap.patient.user.get_full_name()
+                or ap.patient.user.username
+            )
+
+            doctor_queues[doctor_name].append({
+
+                "id": ap.id,
+
+                "patient_name": patient_name,
+
+                "time": ap.appointment_time.strftime(
+                    "%I:%M %p"
+                ) if ap.appointment_time else None,
+
+                "status": ap.status,
+
+                "token": ap.token_number,
+
+            })
+
+        # ============================================
+        # Completed Consultation Data
+        # ============================================
+
+        completed_data = []
+
+        for ap in completed_appointments:
+
+            completed_data.append({
+
+                "id": ap.id,
+
+                "patient_name": (
+                    ap.patient.user.get_full_name()
+                    or ap.patient.user.username
+                ),
+
+                "doctor_name": (
+                    ap.doctor.user.get_full_name()
+                    or ap.doctor.user.username
+                ),
+
+                "time": ap.appointment_time.strftime(
+                    "%I:%M %p"
+                ) if ap.appointment_time else None,
+
+                "status": ap.status,
+
+                "token": ap.token_number,
+
+            })
+
+        # ============================================
+        # Response
+        # ============================================
+
         return Response({
-            "total_appointments": Appointment.objects.filter(appointment_date=today).count(),
-            "checked_in": CheckIn.objects.filter(appointment__appointment_date=today).count(),
-            "walkins": WalkIn.objects.filter(registered_at__date=today).count(),
-            "visitors": VisitorLog.objects.filter(check_in_time__date=today).count(),
+
+            "total_appointments":
+                today_appointments.count(),
+
+            "checked_in":
+                CheckIn.objects.filter(
+                    appointment__appointment_date=today
+                ).count(),
+
+            "walkins":
+                WalkIn.objects.filter(
+                    registered_at__date=today
+                ).count(),
+
+            "visitors":
+                VisitorLog.objects.filter(
+                    check_in_time__date=today
+                ).count(),
+
+            "doctor_queues":
+                doctor_queues,
+
+            "completed_consultations":
+                completed_data,
+
         })
-
-
 # ── Patients ──────────────────────────────────────────
 
 class PatientRegisterAPIView(APIView):
