@@ -24,8 +24,6 @@ export default function ReceptionistDashboard() {
         "/receptionist/dashboard/"
       );
 
-      console.log(res.data);
-
       setData(res.data);
 
     } catch (err) {
@@ -46,10 +44,8 @@ export default function ReceptionistDashboard() {
 
   useEffect(() => {
 
-    // Initial Load
     fetchDashboard();
 
-    // Refresh every 10 seconds
     const interval = setInterval(() => {
 
       fetchDashboard();
@@ -213,6 +209,7 @@ export default function ReceptionistDashboard() {
         ) : (
 
           <>
+
             {/* ============================================
                 Stats
             ============================================ */}
@@ -325,54 +322,28 @@ export default function ReceptionistDashboard() {
             </div>
 
             {/* ============================================
-                Appointment Queue
+                Completed Consultations
             ============================================ */}
 
-            <div className="
-              bg-white
-              rounded-2xl
-              border
-              border-gray-100
-              p-6
-              shadow-sm
-            ">
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
 
-              <div className="
-                flex
-                items-center
-                justify-between
-                mb-6
-              ">
+              <div className="flex items-center justify-between mb-6">
 
                 <div>
 
-                  <h3 className="
-                    font-semibold
-                    text-gray-800
-                    text-sm
-                    uppercase
-                    tracking-wider
-                  ">
-
-                    Appointment Queue
-
+                  <h3 className="font-semibold text-gray-800 text-sm uppercase tracking-wider">
+                    Completed Consultations
                   </h3>
 
-                  <p className="
-                    text-xs
-                    text-gray-500
-                    mt-1
-                  ">
-
-                    Waiting and checked-in patients
-
+                  <p className="text-xs text-gray-500 mt-1">
+                    Ready for billing
                   </p>
 
                 </div>
 
                 <button
                   onClick={() =>
-                    navigate("/receptionist/appointments")
+                    navigate("/receptionist/completed-consultations")
                   }
                   className="
                     text-sm
@@ -388,356 +359,113 @@ export default function ReceptionistDashboard() {
 
               </div>
 
-              <div className="space-y-5">
+              {/* Filter out already billed */}
 
-                {!data?.doctor_queues ||
-                Object.keys(data.doctor_queues).length === 0 ? (
+              {(() => {
 
-                  <div className="
-                    text-center
-                    text-gray-400
-                    py-10
-                  ">
+                const unbilled = (
+                  data?.completed_consultations || []
+                ).filter((a) => !a.has_bill);
 
-                    No patients in queue
+                return unbilled.length === 0 ? (
+
+                  <div className="text-center text-gray-400 py-10">
+
+                    <div className="text-4xl mb-3">
+                      ✅
+                    </div>
+
+                    <p className="text-sm">
+                      All completed consultations have been billed
+                    </p>
 
                   </div>
 
                 ) : (
 
-                  Object.entries(
-                    data.doctor_queues
-                  ).map(
-                    ([doctorName, appointments]) => (
+                  <div className="overflow-x-auto">
 
-                      <div
-                        key={doctorName}
-                        className="
-                          border
-                          border-gray-100
-                          rounded-2xl
-                          overflow-hidden
-                        "
-                      >
+                    <table className="w-full text-sm">
 
-                        {/* Doctor Header */}
+                      <thead className="bg-gray-50 border-b border-gray-100">
 
-                        <div className="
-                          bg-teal-50
-                          px-5
-                          py-4
-                          border-b
-                          border-teal-100
-                        ">
+                        <tr>
 
-                          <h4 className="
-                            font-semibold
-                            text-teal-800
-                          ">
+                          {[
+                            "Patient",
+                            "Doctor",
+                            "Token",
+                            "Time",
+                            "Action",
+                          ].map((h) => (
 
-                            Dr. {doctorName}
+                            <th
+                              key={h}
+                              className="
+                                px-5
+                                py-3
+                                text-left
+                                text-xs
+                                font-semibold
+                                text-gray-500
+                                uppercase
+                                tracking-wider
+                              "
+                            >
 
-                          </h4>
+                              {h}
 
-                        </div>
+                            </th>
 
-                        {/* Queue Appointments */}
+                          ))}
 
-                        <div className="divide-y">
+                        </tr>
 
-                          {appointments.map(
-                            (appointment) => (
+                      </thead>
 
-                              <div
-                                key={appointment.id}
-                                className="
-                                  p-5
-                                  hover:bg-gray-50
-                                  transition-all
-                                "
-                              >
+                      <tbody className="divide-y divide-gray-50">
 
-                                <div className="
-                                  flex
-                                  items-center
-                                  justify-between
-                                  gap-4
-                                ">
-
-                                  <div>
-
-                                    <h4 className="
-                                      font-semibold
-                                      text-gray-800
-                                    ">
-
-                                      {appointment.patient_name}
-
-                                    </h4>
-
-                                    <p className="
-                                      text-sm
-                                      text-gray-500
-                                      mt-1
-                                    ">
-
-                                      Token #
-                                      {appointment.token}
-
-                                    </p>
-
-                                    <p className="
-                                      text-xs
-                                      text-gray-400
-                                      mt-1
-                                    ">
-
-                                      {appointment.time}
-
-                                    </p>
-
-                                  </div>
-
-                                  <span className="
-                                    px-3
-                                    py-1
-                                    rounded-full
-                                    text-xs
-                                    font-bold
-                                    uppercase
-                                    bg-yellow-100
-                                    text-yellow-700
-                                  ">
-
-                                    {appointment.status}
-
-                                  </span>
-
-                                </div>
-
-                              </div>
-
-                            )
-                          )}
-
-                        </div>
-
-                      </div>
-
-                    )
-                  )
-
-                )}
-
-              </div>
-
-            </div>
-
-            {/* ============================================
-                Completed Consultations
-            ============================================ */}
-
-            <div className="
-              bg-white
-              rounded-2xl
-              border
-              border-gray-100
-              p-6
-              shadow-sm
-            ">
-
-              <div className="
-                flex
-                items-center
-                justify-between
-                mb-6
-              ">
-
-                <div>
-
-                  <h3 className="
-                    font-semibold
-                    text-gray-800
-                    text-sm
-                    uppercase
-                    tracking-wider
-                  ">
-
-                    Completed Consultations
-
-                  </h3>
-
-                  <p className="
-                    text-xs
-                    text-gray-500
-                    mt-1
-                  ">
-
-                    Ready for billing
-
-                  </p>
-
-                </div>
-
-              </div>
-
-              {(data?.completed_consultations || [])
-                .length === 0 ? (
-
-                <div className="
-                  text-center
-                  text-gray-400
-                  py-10
-                ">
-
-                  No completed consultations
-
-                </div>
-
-              ) : (
-
-                <div className="overflow-x-auto">
-
-                  <table className="w-full">
-
-                    <thead>
-
-                      <tr className="border-b">
-
-                        <th className="
-                          text-left
-                          pb-4
-                          font-semibold
-                          text-gray-600
-                        ">
-                          Patient
-                        </th>
-
-                        <th className="
-                          text-left
-                          pb-4
-                          font-semibold
-                          text-gray-600
-                        ">
-                          Doctor
-                        </th>
-
-                        <th className="
-                          text-left
-                          pb-4
-                          font-semibold
-                          text-gray-600
-                        ">
-                          Time
-                        </th>
-
-                        <th className="
-                          text-left
-                          pb-4
-                          font-semibold
-                          text-gray-600
-                        ">
-                          Status
-                        </th>
-
-                        <th className="
-                          text-right
-                          pb-4
-                          font-semibold
-                          text-gray-600
-                        ">
-                          Action
-                        </th>
-
-                      </tr>
-
-                    </thead>
-
-                    <tbody>
-
-                      {data.completed_consultations.map(
-                        (appointment) => (
+                        {unbilled.map((ap) => (
 
                           <tr
-                            key={appointment.id}
-                            className="
-                              border-b
-                              last:border-none
-                              hover:bg-gray-50
-                              transition-all
-                            "
+                            key={ap.id}
+                            className="hover:bg-gray-50 transition-all"
                           >
 
-                            <td className="py-5">
-
-                              <div className="
-                                font-semibold
-                                text-gray-800
-                              ">
-
-                                {appointment.patient_name}
-
-                              </div>
-
+                            <td className="px-5 py-4 font-semibold text-gray-800">
+                              {ap.patient_name}
                             </td>
 
-                            <td className="
-                              py-5
-                              text-gray-600
-                            ">
-
-                              Dr. {appointment.doctor_name}
-
+                            <td className="px-5 py-4 text-gray-600">
+                              Dr. {ap.doctor_name}
                             </td>
 
-                            <td className="
-                              py-5
-                              text-gray-500
-                            ">
-
-                              {appointment.time}
-
+                            <td className="px-5 py-4 font-mono font-bold text-teal-700">
+                              #{ap.token}
                             </td>
 
-                            <td className="py-5">
-
-                              <span className="
-                                px-3
-                                py-1
-                                rounded-full
-                                text-xs
-                                font-bold
-                                uppercase
-                                bg-green-100
-                                text-green-700
-                              ">
-
-                                Completed
-
-                              </span>
-
+                            <td className="px-5 py-4 text-gray-500">
+                              {ap.time}
                             </td>
 
-                            <td className="
-                              py-5
-                              text-right
-                            ">
+                            <td className="px-5 py-4">
 
                               <button
                                 onClick={() =>
                                   navigate(
-                                    `/receptionist/bills/create/${appointment.id}`
+                                    `/receptionist/bills/create/${ap.id}`
                                   )
                                 }
                                 className="
                                   bg-teal-600
                                   hover:bg-teal-700
                                   text-white
-                                  text-sm
+                                  text-xs
                                   px-4
                                   py-2
                                   rounded-xl
                                   transition-all
+                                  font-medium
                                 "
                               >
 
@@ -749,20 +477,22 @@ export default function ReceptionistDashboard() {
 
                           </tr>
 
-                        )
-                      )}
+                        ))}
 
-                    </tbody>
+                      </tbody>
 
-                  </table>
+                    </table>
 
-                </div>
+                  </div>
 
-              )}
+                );
+
+              })()}
 
             </div>
 
           </>
+
         )}
 
       </div>
@@ -770,4 +500,5 @@ export default function ReceptionistDashboard() {
     </Layout>
 
   );
+
 }

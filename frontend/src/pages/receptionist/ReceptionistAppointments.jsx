@@ -12,6 +12,8 @@ export default function ReceptionistAppointments() {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
+  const [pendingBills, setPendingBills] = useState([]);
+  const [completedBills, setCompletedBills] = useState([]);
 
   const fetchAppointments = (date) => {
     setLoading(true);
@@ -19,6 +21,15 @@ export default function ReceptionistAppointments() {
       .then((res) => {
         setAppointments(res.data?.results || []);
         setCount(res.data?.count || 0);
+        // Filter appointments into pending and completed bills
+        const pending = (res.data?.results || []).filter(
+          (apt) => apt.status === "Completed" && !apt.bill_generated
+        );
+        const completed = (res.data?.results || []).filter(
+          (apt) => apt.status === "Completed" && apt.bill_generated
+        );
+        setPendingBills(pending);
+        setCompletedBills(completed);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -85,69 +96,174 @@ export default function ReceptionistAppointments() {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                {["Token", "Time", "Patient", "Doctor", "Reason", "Status", "Actions"].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400">Loading appointments...</td>
-                </tr>
-              ) : appointments.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400">
-                    No appointments found for this date.
-                  </td>
-                </tr>
-              ) : appointments.map((ap) => (
-                <tr key={ap.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-mono text-teal-700 font-bold text-sm">
-                    {ap.token_number || <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{ap.appointment_time || "—"}</td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-gray-800">{ap.patient_name}</p>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{ap.doctor_name}</td>
-                  <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{ap.reason || "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusColors[ap.status] || "bg-gray-100 text-gray-600"}`}>
-                      {ap.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      {!ap.token_number && (
+        {/* Appointments Table */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <div className="mb-6">
+            <h3 className="font-semibold text-gray-800 text-sm uppercase tracking-wider">
+              Today's Appointments
+            </h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Manage check-ins and tokens
+            </p>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-10 text-gray-400">Loading...</div>
+          ) : appointments.length === 0 ? (
+            <div className="text-center text-gray-400 py-10">
+              <div className="text-5xl mb-3">📅</div>
+              <p className="text-sm">No appointments for this date</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    {["Patient", "Doctor", "Time", "Status", "Token", "Actions"].map((h) => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {appointments.map((ap) => (
+                    <tr key={ap.id} className="hover:bg-gray-50 transition-all">
+                      <td className="px-5 py-4 font-semibold text-gray-800">{ap.patient_name}</td>
+                      <td className="px-5 py-4 text-gray-600">Dr. {ap.doctor_name}</td>
+                      <td className="px-5 py-4 text-gray-500">{ap.time}</td>
+                      <td className="px-5 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[ap.status] || "bg-gray-100 text-gray-600"}`}>
+                          {ap.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 font-mono font-bold text-teal-700">
+                        {ap.token ? `#${ap.token}` : "—"}
+                      </td>
+                      <td className="px-5 py-4 flex gap-2">
+                        {ap.status === "Scheduled" && (
+                          <button
+                            onClick={() => checkIn(ap.id)}
+                            disabled={actionLoading === `checkin-${ap.id}`}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg transition-all font-medium disabled:opacity-50"
+                          >
+                            {actionLoading === `checkin-${ap.id}` ? "..." : "Check In"}
+                          </button>
+                        )}
+                        {ap.status === "Checked In" && !ap.token && (
+                          <button
+                            onClick={() => generateToken(ap.id)}
+                            disabled={actionLoading === `token-${ap.id}`}
+                            className="bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-1.5 rounded-lg transition-all font-medium disabled:opacity-50"
+                          >
+                            {actionLoading === `token-${ap.id}` ? "..." : "Generate Token"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Pending Billing */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <div className="mb-6">
+            <h3 className="font-semibold text-gray-800 text-sm uppercase tracking-wider">
+              Pending Billing
+            </h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Completed consultations awaiting billing
+            </p>
+          </div>
+
+          {pendingBills.length === 0 ? (
+            <div className="text-center text-gray-400 py-10">
+              <div className="text-5xl mb-3">✅</div>
+              <p className="text-sm">No pending bills</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    {["Patient", "Doctor", "Token", "Time", "Action"].map((h) => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {pendingBills.map((ap) => (
+                    <tr key={ap.id} className="hover:bg-gray-50 transition-all">
+                      <td className="px-5 py-4 font-semibold text-gray-800">{ap.patient_name}</td>
+                      <td className="px-5 py-4 text-gray-600">Dr. {ap.doctor_name}</td>
+                      <td className="px-5 py-4 font-mono font-bold text-teal-700">#{ap.token}</td>
+                      <td className="px-5 py-4 text-gray-500">{ap.time}</td>
+                      <td className="px-5 py-4">
                         <button
-                          onClick={() => generateToken(ap.id)}
-                          disabled={actionLoading === `token-${ap.id}`}
-                          className="text-xs bg-teal-100 text-teal-700 px-3 py-1 rounded-lg hover:bg-teal-200 transition-colors font-medium disabled:opacity-50"
+                          onClick={() => navigate(`/receptionist/bills/create/${ap.id}`)}
+                          className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium"
                         >
-                          {actionLoading === `token-${ap.id}` ? "..." : "Token"}
+                          Create Bill
                         </button>
-                      )}
-                      {ap.status === "Scheduled" && (
-                        <button
-                          onClick={() => checkIn(ap.id)}
-                          disabled={actionLoading === `checkin-${ap.id}`}
-                          className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-lg hover:bg-green-200 transition-colors font-medium disabled:opacity-50"
-                        >
-                          {actionLoading === `checkin-${ap.id}` ? "..." : "Check In"}
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Completed Billing */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <div className="mb-6">
+            <h3 className="font-semibold text-gray-800 text-sm uppercase tracking-wider">
+              Completed Billing
+            </h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Consultations with generated bills
+            </p>
+          </div>
+
+          {completedBills.length === 0 ? (
+            <div className="text-center text-gray-400 py-10">
+              No completed bills
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    {["Patient", "Doctor", "Token", "Time", "Status"].map((h) => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {completedBills.map((ap) => (
+                    <tr key={ap.id} className="hover:bg-gray-50 transition-all">
+                      <td className="px-5 py-4 font-semibold text-gray-800">{ap.patient_name}</td>
+                      <td className="px-5 py-4 text-gray-600">Dr. {ap.doctor_name}</td>
+                      <td className="px-5 py-4 font-mono font-bold text-teal-700">#{ap.token}</td>
+                      <td className="px-5 py-4 text-gray-500">{ap.time}</td>
+                      <td className="px-5 py-4">
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                          Billed
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </Layout>

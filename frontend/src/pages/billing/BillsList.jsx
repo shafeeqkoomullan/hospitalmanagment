@@ -1,14 +1,22 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
 import Layout from "../../components/Layout";
 import api from "../../api/axios";
 
 export default function BillsList() {
+
+  const navigate = useNavigate();
 
   const [bills, setBills] = useState([]);
 
   const [loading, setLoading] = useState(true);
 
   const [statusFilter, setStatusFilter] = useState("");
+
+  // =========================================
+  // Fetch Bills
+  // =========================================
 
   const fetchBills = async () => {
 
@@ -26,13 +34,14 @@ export default function BillsList() {
 
     } catch (err) {
 
-      console.error(err);
+      console.log(err);
 
     } finally {
 
       setLoading(false);
 
     }
+
   };
 
   useEffect(() => {
@@ -40,6 +49,10 @@ export default function BillsList() {
     fetchBills();
 
   }, [statusFilter]);
+
+  // =========================================
+  // Helpers
+  // =========================================
 
   const getStatusColor = (status) => {
 
@@ -59,46 +72,235 @@ export default function BillsList() {
 
       default:
         return "bg-gray-100 text-gray-700";
+
     }
+
   };
+
+  // =========================================
+  // Stats
+  // =========================================
+
+  const totalBills = bills.length;
+
+  const paidBills = bills.filter(
+    (b) => b.status === "Paid"
+  ).length;
+
+  const unpaidBills = bills.filter(
+    (b) => b.status === "Unpaid"
+  ).length;
+
+  const totalRevenue = bills.reduce(
+    (sum, bill) => sum + Number(bill.amount || 0),
+    0
+  );
 
   return (
 
     <Layout>
 
-      <div className="space-y-8">
+      <div className="space-y-6">
 
-        {/* Header */}
+        {/* =====================================
+            Header
+        ===================================== */}
 
-        <div className="flex items-center justify-between">
+        <div
+          className="
+            bg-gradient-to-r
+            from-teal-700
+            to-teal-600
+            rounded-2xl
+            p-6
+            text-white
+            shadow-md
+          "
+        >
 
-          <div>
+          <p className="text-teal-200 text-sm mb-1">
+            Billing Management
+          </p>
 
-            <h1 className="text-3xl font-bold text-gray-800">
-              Bills
-            </h1>
+          <h2
+            className="text-4xl font-bold"
+            style={{
+              fontFamily: "Georgia, serif",
+            }}
+          >
 
-            <p className="text-gray-500 mt-1">
-              Manage patient billing records
+            Bills
+
+          </h2>
+
+          <p className="text-teal-200 text-sm mt-2">
+            Manage patient billing records
+          </p>
+
+        </div>
+
+        {/* =====================================
+            Stats
+        ===================================== */}
+
+        <div
+          className="
+            grid
+            grid-cols-1
+            sm:grid-cols-2
+            xl:grid-cols-4
+            gap-5
+          "
+        >
+
+          <div
+            className="
+              bg-white
+              rounded-2xl
+              border
+              border-gray-100
+              p-5
+              shadow-sm
+            "
+          >
+
+            <p className="text-sm text-gray-500">
+              Total Bills
             </p>
+
+            <h3
+              className="
+                text-4xl
+                font-bold
+                text-gray-800
+                mt-2
+              "
+            >
+
+              {totalBills}
+
+            </h3>
+
+          </div>
+
+          <div
+            className="
+              bg-white
+              rounded-2xl
+              border
+              border-gray-100
+              p-5
+              shadow-sm
+            "
+          >
+
+            <p className="text-sm text-gray-500">
+              Paid Bills
+            </p>
+
+            <h3
+              className="
+                text-4xl
+                font-bold
+                text-green-600
+                mt-2
+              "
+            >
+
+              {paidBills}
+
+            </h3>
+
+          </div>
+
+          <div
+            className="
+              bg-white
+              rounded-2xl
+              border
+              border-gray-100
+              p-5
+              shadow-sm
+            "
+          >
+
+            <p className="text-sm text-gray-500">
+              Unpaid Bills
+            </p>
+
+            <h3
+              className="
+                text-4xl
+                font-bold
+                text-red-600
+                mt-2
+              "
+            >
+
+              {unpaidBills}
+
+            </h3>
+
+          </div>
+
+          <div
+            className="
+              bg-white
+              rounded-2xl
+              border
+              border-gray-100
+              p-5
+              shadow-sm
+            "
+          >
+
+            <p className="text-sm text-gray-500">
+              Total Revenue
+            </p>
+
+            <h3
+              className="
+                text-4xl
+                font-bold
+                text-teal-700
+                mt-2
+              "
+            >
+
+              ₹ {totalRevenue}
+
+            </h3>
 
           </div>
 
         </div>
 
-        {/* Filters */}
+        {/* =====================================
+            Filters
+        ===================================== */}
 
-        <div className="bg-white p-5 rounded-3xl border shadow-sm">
+        <div
+          className="
+            bg-white
+            rounded-2xl
+            border
+            border-gray-100
+            p-5
+            shadow-sm
+          "
+        >
 
           <div className="flex flex-wrap gap-4 items-center">
 
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) =>
+                setStatusFilter(e.target.value)
+              }
               className="
                 border
-                border-gray-300
-                rounded-2xl
+                border-gray-200
+                rounded-xl
                 px-4
                 py-3
                 outline-none
@@ -133,51 +335,81 @@ export default function BillsList() {
 
         </div>
 
-        {/* Table */}
+        {/* =====================================
+            Bills Table
+        ===================================== */}
 
-        <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
+        <div
+          className="
+            bg-white
+            rounded-2xl
+            border
+            border-gray-100
+            shadow-sm
+            overflow-hidden
+          "
+        >
 
           <div className="overflow-x-auto">
 
-            <table className="w-full">
+            <table className="w-full text-sm">
 
-              <thead className="bg-gray-50 border-b">
+              <thead
+                className="
+                  bg-gray-50
+                  border-b
+                  border-gray-100
+                "
+              >
 
                 <tr>
 
-                  <th className="text-left px-6 py-4 font-semibold text-gray-600">
-                    Bill ID
-                  </th>
+                  {[
+                    "Bill ID",
+                    "Patient",
+                    "Amount",
+                    "Status",
+                    "Date",
+                    "Actions",
+                  ].map((h) => (
 
-                  <th className="text-left px-6 py-4 font-semibold text-gray-600">
-                    Patient
-                  </th>
+                    <th
+                      key={h}
+                      className="
+                        px-6
+                        py-4
+                        text-left
+                        text-xs
+                        font-semibold
+                        text-gray-500
+                        uppercase
+                        tracking-wider
+                      "
+                    >
 
-                  <th className="text-left px-6 py-4 font-semibold text-gray-600">
-                    Amount
-                  </th>
+                      {h}
 
-                  <th className="text-left px-6 py-4 font-semibold text-gray-600">
-                    Status
-                  </th>
+                    </th>
 
-                  <th className="text-left px-6 py-4 font-semibold text-gray-600">
-                    Date
-                  </th>
+                  ))}
 
                 </tr>
 
               </thead>
 
-              <tbody>
+              <tbody className="divide-y divide-gray-50">
 
                 {loading ? (
 
                   <tr>
 
                     <td
-                      colSpan="5"
-                      className="text-center py-10 text-gray-500"
+                      colSpan="6"
+                      className="
+                        text-center
+                        py-10
+                        text-gray-400
+                      "
                     >
 
                       Loading bills...
@@ -191,8 +423,12 @@ export default function BillsList() {
                   <tr>
 
                     <td
-                      colSpan="5"
-                      className="text-center py-10 text-gray-500"
+                      colSpan="6"
+                      className="
+                        text-center
+                        py-10
+                        text-gray-400
+                      "
                     >
 
                       No bills found
@@ -207,19 +443,49 @@ export default function BillsList() {
 
                     <tr
                       key={bill.id}
-                      className="border-b last:border-none hover:bg-gray-50 transition-all"
+                      className="
+                        hover:bg-gray-50
+                        transition-all
+                      "
                     >
 
-                      <td className="px-6 py-5 font-medium text-gray-700">
+                      <td
+                        className="
+                          px-6
+                          py-5
+                          font-semibold
+                          text-gray-700
+                        "
+                      >
+
                         #{bill.id}
+
                       </td>
 
-                      <td className="px-6 py-5">
+                      <td
+                        className="
+                          px-6
+                          py-5
+                          font-medium
+                          text-gray-800
+                        "
+                      >
+
                         {bill.patient_name || "Unknown"}
+
                       </td>
 
-                      <td className="px-6 py-5 font-semibold">
+                      <td
+                        className="
+                          px-6
+                          py-5
+                          font-bold
+                          text-gray-800
+                        "
+                      >
+
                         ₹ {bill.amount}
+
                       </td>
 
                       <td className="px-6 py-5">
@@ -247,6 +513,64 @@ export default function BillsList() {
                         {bill.bill_date}
                       </td>
 
+                      <td className="px-6 py-5">
+
+                        <div className="flex gap-2">
+
+                          <button
+                            onClick={() =>
+                              navigate(
+                                `/receptionist/bills/${bill.id}`
+                              )
+                            }
+                            className="
+                              bg-gray-100
+                              hover:bg-gray-200
+                              text-gray-700
+                              px-4
+                              py-2
+                              rounded-xl
+                              text-xs
+                              font-medium
+                              transition-all
+                            "
+                          >
+
+                            View
+
+                          </button>
+
+                          {bill.status !== "Paid" && (
+
+                            <button
+                              onClick={() =>
+                                navigate(
+                                  `/receptionist/payments/create/${bill.id}`
+                                )
+                              }
+                              className="
+                                bg-teal-600
+                                hover:bg-teal-700
+                                text-white
+                                px-4
+                                py-2
+                                rounded-xl
+                                text-xs
+                                font-medium
+                                transition-all
+                              "
+                            >
+
+                              Payment
+
+                            </button>
+
+                          )}
+
+                        </div>
+
+                      </td>
+
                     </tr>
 
                   ))
@@ -266,4 +590,5 @@ export default function BillsList() {
     </Layout>
 
   );
+
 }

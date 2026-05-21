@@ -47,45 +47,75 @@ class ReceptionistDashboardAPIView(APIView):
 
     permission_classes = [IsAuthenticated, IsReceptionist]
 
-
     def get(self, request):
 
         today = timezone.now().date()
 
         # ============================================
-        # Base Query
+        # Base Appointment Query
         # ============================================
 
-        today_appointments = Appointment.objects.filter(
-            appointment_date=today
-        ).select_related(
-            "patient__user",
-            "doctor__user",
+        today_appointments = (
+            Appointment.objects
+            .filter(appointment_date=today)
+            .select_related(
+                "patient__user",
+                "doctor__user",
+            )
         )
-        
-        print(today_appointments.values_list("status", flat=True))
+
+        # ============================================
+        # Dashboard Stats
+        # ============================================
+
+        total_appointments = today_appointments.count()
+
+        checked_in = (
+            CheckIn.objects.filter(
+                appointment__appointment_date=today
+            ).count()
+        )
+
+        walkins = (
+            WalkIn.objects.filter(
+                registered_at__date=today
+            ).count()
+        )
+
+        visitors = (
+            VisitorLog.objects.filter(
+                check_in_time__date=today
+            ).count()
+        )
 
         # ============================================
         # Queue Appointments
         # ============================================
 
-        queue_appointments = today_appointments.filter(
-            status__in=[
-                "Scheduled",
-                "Checked In",
-            ]
-        ).order_by(
-            "doctor",
-            "appointment_time",
+        queue_appointments = (
+            today_appointments
+            .filter(
+                status__in=[
+                    "Scheduled",
+                    "Checked In",
+                ]
+            )
+            .order_by(
+                "doctor",
+                "appointment_time",
+            )
         )
 
         # ============================================
         # Completed Consultations
         # ============================================
 
-        completed_appointments = today_appointments.filter(
-            status="Completed"
-        ).order_by("-appointment_time")
+        completed_appointments = (
+            today_appointments
+            .filter(status="Completed")
+            .prefetch_related('bills')
+            .order_by("-appointment_time")
+        )
 
         # ============================================
         # Doctor-Based Queue
@@ -98,12 +128,12 @@ class ReceptionistDashboardAPIView(APIView):
             doctor_name = (
                 ap.doctor.user.get_full_name()
                 or ap.doctor.user.username
-            )
+            ) if ap.doctor else "Unknown Doctor"
 
             patient_name = (
                 ap.patient.user.get_full_name()
                 or ap.patient.user.username
-            )
+            ) if ap.patient else "—"
 
             doctor_queues[doctor_name].append({
 
@@ -111,13 +141,15 @@ class ReceptionistDashboardAPIView(APIView):
 
                 "patient_name": patient_name,
 
-                "time": ap.appointment_time.strftime(
-                    "%I:%M %p"
-                ) if ap.appointment_time else None,
+                "time": (
+                    ap.appointment_time.strftime("%I:%M %p")
+                    if ap.appointment_time
+                    else "—"
+                ),
 
                 "status": ap.status,
 
-                "token": ap.token_number,
+                "token": ap.token_number or "—",
 
             })
 
@@ -136,46 +168,47 @@ class ReceptionistDashboardAPIView(APIView):
                 "patient_name": (
                     ap.patient.user.get_full_name()
                     or ap.patient.user.username
-                ),
+                ) if ap.patient else "—",
 
                 "doctor_name": (
                     ap.doctor.user.get_full_name()
                     or ap.doctor.user.username
-                ),
+                ) if ap.doctor else "—",
 
-                "time": ap.appointment_time.strftime(
-                    "%I:%M %p"
-                ) if ap.appointment_time else None,
+                "time": (
+                    ap.appointment_time.strftime("%I:%M %p")
+                    if ap.appointment_time
+                    else "—"
+                ),
 
                 "status": ap.status,
 
-                "token": ap.token_number,
+                "token": ap.token_number or "—",
+
+                "has_bill": (
+                    hasattr(ap, "bills")
+                    and ap.bills.exists()
+                ),
 
             })
 
         # ============================================
-        # Response
+        # Final Response
         # ============================================
 
         return Response({
 
             "total_appointments":
-                today_appointments.count(),
+                total_appointments,
 
             "checked_in":
-                CheckIn.objects.filter(
-                    appointment__appointment_date=today
-                ).count(),
+                checked_in,
 
             "walkins":
-                WalkIn.objects.filter(
-                    registered_at__date=today
-                ).count(),
+                walkins,
 
             "visitors":
-                VisitorLog.objects.filter(
-                    check_in_time__date=today
-                ).count(),
+                visitors,
 
             "doctor_queues":
                 doctor_queues,
@@ -184,7 +217,6 @@ class ReceptionistDashboardAPIView(APIView):
                 completed_data,
 
         })
-# ── Patients ──────────────────────────────────────────
 
 class PatientRegisterAPIView(APIView):
     permission_classes = [IsAuthenticated, IsReceptionist]
