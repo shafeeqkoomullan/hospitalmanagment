@@ -2,16 +2,19 @@ from django.db import models
 
 
 class Appointment(models.Model):
-    STATUS_PENDING = "Pending"
-    STATUS_COMPLETED = "Completed"
-    STATUS_CANCELLED = "Cancelled"
     
+    STATUS_SCHEDULED  = 'Scheduled'
+    STATUS_CHECKED_IN = 'Checked In'
+    STATUS_COMPLETED  = 'Completed'
+    STATUS_CANCELLED  = 'Cancelled'
+    STATUS_NO_SHOW    = 'No Show'
+
     STATUS_CHOICES = [
-        ('Scheduled', 'Scheduled'),
-        ('Checked In', 'Checked In'),
-        ('Completed', 'Completed'),
-        ('Cancelled', 'Cancelled'),
-        ('No Show', 'No Show'),
+        (STATUS_SCHEDULED,  'Scheduled'),
+        (STATUS_CHECKED_IN, 'Checked In'),
+        (STATUS_COMPLETED,  'Completed'),
+        (STATUS_CANCELLED,  'Cancelled'),
+        (STATUS_NO_SHOW,    'No Show'),
     ]
 
     patient = models.ForeignKey(
@@ -31,7 +34,7 @@ class Appointment(models.Model):
     )
 
     created_by = models.ForeignKey(
-        'accounts.CustomUser',   # ✅ FIXED
+        'accounts.CustomUser',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -47,7 +50,7 @@ class Appointment(models.Model):
     status = models.CharField(
         max_length=32,
         choices=STATUS_CHOICES,
-        default='Scheduled'
+        default=STATUS_SCHEDULED,  # FIX: Use constant instead of raw string
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

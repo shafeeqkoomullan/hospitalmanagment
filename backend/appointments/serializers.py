@@ -34,21 +34,26 @@ class AppointmentSerializer(serializers.ModelSerializer):
         appointment_date = attrs.get('appointment_date')
         appointment_time = attrs.get('appointment_time')
 
-        # Prevent double-booking same doctor at same date+time
-        qs = Appointment.objects.filter(
-            doctor=doctor,
-            appointment_date=appointment_date,
-            appointment_time=appointment_time,
-            status__in=['Scheduled', 'Checked In'],
-        )
-        # Exclude current instance on update
-        if self.instance:
-            qs = qs.exclude(pk=self.instance.pk)
-
-        if qs.exists():
-            raise serializers.ValidationError(
-                {"appointment_time": "This doctor already has an appointment at this date and time."}
+        # FIX: Only run double-booking check when all three fields are present.
+        # Previously, a None appointment_time would match ALL null-time slots
+        # for that doctor+date, causing false conflicts.
+        if doctor and appointment_date and appointment_time:
+            qs = Appointment.objects.filter(
+                doctor=doctor,
+                appointment_date=appointment_date,
+                appointment_time=appointment_time,
+                # FIX: Use model constants instead of raw strings
+                status__in=[Appointment.STATUS_SCHEDULED, Appointment.STATUS_CHECKED_IN],
             )
+            # Exclude current instance on update
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {"appointment_time": "This doctor already has an appointment at this date and time."}
+                )
+
         return attrs
 
 

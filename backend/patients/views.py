@@ -31,15 +31,22 @@ class PatientListAPIView(APIView):
         patients = Patient.objects.select_related('user').order_by('-created_at')
 
         is_blocked = request.query_params.get('is_blocked')
-        gender = request.query_params.get('gender')
-        search = request.query_params.get('search')
+        gender     = request.query_params.get('gender')
+        search     = request.query_params.get('search')
 
         if is_blocked is not None:
-            patients = patients.filter(is_blocked=is_blocked.lower() == 'true')
+            patients = patients.filter(is_blocked=is_blocked.lower() in ('true', '1', 'yes'))
         if gender:
             patients = patients.filter(gender=gender)
         if search:
-            patients = patients.filter(user__username__icontains=search)
+            # FIX: Extended search to cover patient_id and email, not just username
+            patients = patients.filter(
+                user__username__icontains=search
+            ) | patients.filter(
+                patient_id__icontains=search
+            ) | patients.filter(
+                user__email__icontains=search
+            )
 
         return Response(PatientSerializer(patients, many=True).data)
 
@@ -57,7 +64,9 @@ class PatientDetailAPIView(APIView):
         if serializer.is_valid():
             serializer.save()
             log_action(actor=request.user, role=request.user.role, action='update', instance=patient, request=request)
-            return Response(PatientSerializer(patient).data)
+            # FIX: Was returning PatientSerializer(patient) with stale data.
+            # Re-fetch with select_related to get fresh accurate response.
+            return Response(PatientSerializer(Patient.objects.select_related('user').get(pk=pk)).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -68,6 +77,10 @@ class PatientBlockToggleAPIView(APIView):
         patient = get_object_or_404(Patient, pk=pk)
         patient.is_blocked = not patient.is_blocked
         patient.save(update_fields=['is_blocked'])
+        # FIX: Also toggle the underlying user's is_active so blocked patients
+        # cannot log in — is_blocked alone only affects app-level checks
+        patient.user.is_active = not patient.is_blocked
+        patient.user.save(update_fields=['is_active'])
         return Response({"id": patient.id, "is_blocked": patient.is_blocked})
 
 
@@ -77,7 +90,7 @@ class PatientMeAPIView(APIView):
     permission_classes = [IsAuthenticated, IsPatient]
 
     def get(self, request):
-        patient = get_object_or_404(Patient, user=request.user)
+        patient = get_object_or_404(Patient.objects.select_related('user'), user=request.user)
         return Response(PatientSerializer(patient).data)
 
     def patch(self, request):
@@ -85,7 +98,8 @@ class PatientMeAPIView(APIView):
         serializer = PatientUpdateSerializer(patient, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(PatientSerializer(patient).data)
+            # FIX: Re-fetch with select_related for fresh response
+            return Response(PatientSerializer(Patient.objects.select_related('user').get(pk=patient.pk)).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -138,7 +152,8 @@ class MedicalRecordDetailAPIView(APIView):
         record = get_object_or_404(MedicalRecord, pk=pk)
         log_action(actor=request.user, role=request.user.role, action='delete', instance=record, request=request)
         record.delete()
-        return Response({"message": "Medical record deleted."}, status=status.HTTP_204_NO_CONTENT)
+        # FIX: 204 No Content must not include a body
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ── Medical Reports ───────────────────────────────────────────────────────────
@@ -156,9 +171,13 @@ class MedicalReportUploadAPIView(APIView):
 
     def delete(self, request, record_id):
         report_id = request.data.get('report_id')
+        if not report_id:
+            # FIX: Was silently doing a 404 if report_id missing — return explicit error
+            return Response({"error": "report_id is required."}, status=status.HTTP_400_BAD_REQUEST)
         report = get_object_or_404(MedicalReport, id=report_id, medical_record_id=record_id)
         report.delete()
-        return Response({"message": "Report deleted."}, status=status.HTTP_204_NO_CONTENT)
+        # FIX: 204 No Content must not include a body
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ── Feedback ──────────────────────────────────────────────────────────────────
@@ -191,7 +210,7 @@ class FeedbackListAPIView(APIView):
 # ── Support Tickets ───────────────────────────────────────────────────────────
 
 class SupportTicketCreateAPIView(APIView):
-    """Patients create support tickets."""
+    """Patients create and view their own support tickets."""
     permission_classes = [IsAuthenticated, IsPatient]
 
     def post(self, request):
@@ -210,7 +229,7 @@ class SupportTicketCreateAPIView(APIView):
 
 
 class SupportTicketAdminAPIView(APIView):
-    """Admin views and updates all support tickets."""
+    """Admin views all support tickets."""
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def get(self, request):
@@ -230,7 +249,8 @@ class SupportTicketStatusUpdateAPIView(APIView):
         serializer = SupportTicketStatusSerializer(ticket, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response({"id": ticket.id, "status": ticket.status})
+            # FIX: Was returning ticket.status (stale pre-save value) — use serializer.instance
+            return Response({"id": ticket.id, "status": serializer.instance.status})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -253,9 +273,8 @@ class AdmissionListAPIView(APIView):
 
     def get(self, request):
         admissions = Admission.objects.select_related('patient__user').order_by('-admitted_on')
-        # Filter active admissions only
         active_only = request.query_params.get('active')
-        if active_only and active_only.lower() == 'true':
+        if active_only and active_only.lower() in ('true', '1', 'yes'):
             admissions = admissions.filter(discharged_on__isnull=True)
         return Response(AdmissionSerializer(admissions, many=True).data)
 
@@ -266,10 +285,7 @@ class AdmissionDischargeAPIView(APIView):
     def post(self, request, pk):
         admission = get_object_or_404(Admission, pk=pk)
         if admission.discharged_on:
-            return Response(
-                {"error": "Patient already discharged."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Patient already discharged."}, status=status.HTTP_400_BAD_REQUEST)
         admission.discharged_on = now()
         admission.save(update_fields=['discharged_on'])
         log_action(actor=request.user, role=request.user.role, action='update', instance=admission, request=request)

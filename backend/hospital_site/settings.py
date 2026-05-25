@@ -1,14 +1,17 @@
 from pathlib import Path
 from datetime import timedelta
-
+import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-replace-this-with-a-secure-key'
+# 🔴 Fix 1: Load SECRET_KEY from environment
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'fallback-only-for-local-dev')
 
-DEBUG = True
+# 🔴 Fix 2: Load DEBUG from environment
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = []
+# 🟠 Fix 5: Load ALLOWED_HOSTS from environment
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost 127.0.0.1').split()
 
 INSTALLED_APPS = [
     'corsheaders',
@@ -20,6 +23,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',  # 🔴 Fix 6: required for BLACKLIST_AFTER_ROTATION
 
     'accounts',
     'core',
@@ -31,12 +35,12 @@ INSTALLED_APPS = [
     'admin_panel',
 ]
 
+# 🟠 Fix 4: SecurityMiddleware first, CorsMiddleware second, no duplicates
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.security.SecurityMiddleware',
+    'django.middleware.security.SecurityMiddleware',           # must be first
+    'corsheaders.middleware.CorsMiddleware',                   # must be before CommonMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
+    'django.middleware.common.CommonMiddleware',               # only once
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -78,7 +82,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kolkata'  # 🟡 Fix 7: correct timezone for an Indian hospital system
 
 USE_I18N = True
 USE_TZ = True
@@ -89,8 +93,7 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOW_ALL_ORIGINS = True
-
+# 🟠 Fix 3: Remove CORS_ALLOW_ALL_ORIGINS — whitelist only
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",

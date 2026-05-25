@@ -1,13 +1,19 @@
 import uuid
 from django.db import models
+from django.utils import timezone
 
 
 class Bill(models.Model):
+    STATUS_PAID    = 'Paid'
+    STATUS_PARTIAL = 'Partial'
+    STATUS_UNPAID  = 'Unpaid'
+    STATUS_OVERDUE = 'Overdue'
+
     STATUS_CHOICES = [
-        ('Paid', 'Paid'),
-        ('Partial', 'Partial'),
-        ('Unpaid', 'Unpaid'),
-        ('Overdue', 'Overdue'),
+        (STATUS_PAID,    'Paid'),
+        (STATUS_PARTIAL, 'Partial'),
+        (STATUS_UNPAID,  'Unpaid'),
+        (STATUS_OVERDUE, 'Overdue'),
     ]
 
     patient = models.ForeignKey(
@@ -25,7 +31,7 @@ class Bill(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     bill_date = models.DateField(auto_now_add=True)
     due_date = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='Unpaid')
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_UNPAID)
     description = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -46,14 +52,20 @@ class Bill(models.Model):
         return self.amount - self.total_paid()
 
     def refresh_status(self):
-        """Auto-update status based on payments."""
+        """Auto-update status based on payments and due date."""
         paid = self.total_paid()
-        if paid <= 0:
-            self.status = 'Unpaid'
-        elif paid >= self.amount:
-            self.status = 'Paid'
+        is_overdue = self.due_date and self.due_date < timezone.now().date()
+
+        if paid >= self.amount:
+            # FIX: Fully paid always wins regardless of due date
+            self.status = self.STATUS_PAID
+        elif paid > 0:
+            # FIX: Partial payment — respect overdue if due date has passed
+            self.status = self.STATUS_OVERDUE if is_overdue else self.STATUS_PARTIAL
         else:
-            self.status = 'Partial'
+            # FIX: No payment — respect overdue if due date has passed
+            self.status = self.STATUS_OVERDUE if is_overdue else self.STATUS_UNPAID
+
         self.save(update_fields=['status'])
 
 

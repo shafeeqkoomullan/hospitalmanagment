@@ -70,7 +70,8 @@ class AppointmentDetailAPIView(APIView):
     def delete(self, request, pk):
         appointment = get_object_or_404(Appointment, pk=pk)
         appointment.delete()
-        return Response({"message": "Appointment deleted."}, status=status.HTTP_204_NO_CONTENT)
+        # FIX: 204 No Content must not include a body — removed {"message": ...}
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ── Status Update ─────────────────────────────────────────────────────────────
@@ -83,7 +84,9 @@ class AppointmentStatusUpdateAPIView(APIView):
         serializer = AppointmentStatusUpdateSerializer(appointment, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response({"id": appointment.id, "status": appointment.status})
+            # FIX: Was returning appointment.status (stale pre-save value).
+            # serializer.instance holds the refreshed object after save.
+            return Response({"id": appointment.id, "status": serializer.instance.status})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -136,12 +139,13 @@ class AppointmentCancelAPIView(APIView):
     def post(self, request, pk):
         appointment = get_object_or_404(Appointment, pk=pk)
 
-        if appointment.status in ['Completed', 'Cancelled']:
+        # FIX: Use model constants instead of raw strings
+        if appointment.status in [Appointment.STATUS_COMPLETED, Appointment.STATUS_CANCELLED]:
             return Response(
                 {"error": f"Cannot cancel an appointment with status '{appointment.status}'."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        appointment.status = 'Cancelled'
+        appointment.status = Appointment.STATUS_CANCELLED
         appointment.save(update_fields=['status'])
         return Response({"id": appointment.id, "status": appointment.status})

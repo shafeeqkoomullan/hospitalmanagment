@@ -17,6 +17,8 @@ urlpatterns = [
 
     # Shifts
     path('shifts/', views.ShiftListCreateAPIView.as_view(), name='shifts'),
+    # FIX: Added missing shift detail route for update/delete
+    path('shifts/<int:pk>/', views.ShiftDetailAPIView.as_view(), name='shift-detail'),
 
     # Create staff
     path('create-receptionist/', views.AdminCreateReceptionistAPIView.as_view(), name='create-receptionist'),
@@ -24,7 +26,8 @@ urlpatterns = [
 
     # User management
     path('toggle-user/<int:user_id>/', views.AdminToggleUserAPIView.as_view(), name='toggle-user'),
-    path('delete-user/<int:user_id>/', views.AdminDeleteUserAPIView.as_view(), name='delete-user'),
+    # FIX: Renamed URL from 'delete-user' to 'deactivate-user' to match actual soft-delete behaviour
+    path('deactivate-user/<int:user_id>/', views.AdminDeactivateUserAPIView.as_view(), name='deactivate-user'),
 
     # Doctors
     path('doctors/', views.AdminDoctorListAPIView.as_view(), name='doctors'),

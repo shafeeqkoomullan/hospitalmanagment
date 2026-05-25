@@ -190,11 +190,7 @@ class AdminDashboardAPIView(APIView):
     permission_classes = [IsAuthenticated, IsHospitalAdmin]
 
     def get(self, request):
-        
-        print("VIEW USER:", request.user)
-        print("VIEW ROLE:", getattr(request.user, "role", None))
-        print("VIEW AUTH:", request.user.is_authenticated)
-
+        # FIX: Removed debug print statements
         date_param = request.query_params.get('date')
 
         if date_param:
@@ -255,20 +251,38 @@ class AdminToggleUserAPIView(APIView):
 
     def post(self, request, user_id):
         user = get_object_or_404(CustomUser, id=user_id)
+
+        # FIX: Prevent admin from toggling their own account
+        if user == request.user:
+            return Response(
+                {"error": "You cannot toggle your own account."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         user.is_active = not user.is_active
         user.save(update_fields=['is_active'])
-        return Response({"id": user.id, "is_active": user.is_active})
+        return Response({"id": user.id, "is_active": user.is_active}, status=status.HTTP_200_OK)
 
 
-class AdminDeleteUserAPIView(APIView):
+class AdminDeactivateUserAPIView(APIView):
+    # FIX: Renamed from AdminDeleteUserAPIView to reflect actual soft-delete behaviour
     permission_classes = [IsAuthenticated, IsHospitalAdmin]
 
     def delete(self, request, user_id):
         user = get_object_or_404(CustomUser, id=user_id)
+
+        # FIX: Prevent admin from deactivating their own account
+        if user == request.user:
+            return Response(
+                {"error": "You cannot deactivate your own account."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         # Soft delete — deactivate instead of destroy
         user.is_active = False
         user.save(update_fields=['is_active'])
-        return Response({"message": "User deactivated successfully."})
+        # FIX: Added explicit HTTP 200 status code
+        return Response({"message": "User deactivated successfully."}, status=status.HTTP_200_OK)
 
 
 # ── Doctors ───────────────────────────────────────────────────────────────────
@@ -300,15 +314,26 @@ class AdminDoctorUpdateDeleteAPIView(APIView):
 
     def put(self, request, id):
         doctor = get_object_or_404(Doctor, id=id)
-        data = request.data
 
-        doctor.specialization = data.get("specialization", doctor.specialization)
-        doctor.qualification = data.get("qualification", doctor.qualification)
-        doctor.years_of_experience = data.get("years_of_experience", doctor.years_of_experience)
-        doctor.license_no = data.get("license_no", doctor.license_no)
+        # FIX: Validate years_of_experience is a non-negative integer
+        years = request.data.get("years_of_experience", doctor.years_of_experience)
+        try:
+            years = int(years)
+            if years < 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "years_of_experience must be a non-negative integer."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        if data.get("department_id"):
-            doctor.department = get_object_or_404(Department, id=data["department_id"])
+        doctor.specialization = request.data.get("specialization", doctor.specialization)
+        doctor.qualification = request.data.get("qualification", doctor.qualification)
+        doctor.years_of_experience = years
+        doctor.license_no = request.data.get("license_no", doctor.license_no)
+
+        if request.data.get("department_id"):
+            doctor.department = get_object_or_404(Department, id=request.data["department_id"])
 
         doctor.save()
         return Response({"message": "Doctor updated successfully.", "id": doctor.id})
@@ -317,7 +342,7 @@ class AdminDoctorUpdateDeleteAPIView(APIView):
         doctor = get_object_or_404(Doctor, id=id)
         doctor.user.is_active = False
         doctor.user.save(update_fields=['is_active'])
-        return Response({"message": "Doctor deactivated successfully."})
+        return Response({"message": "Doctor deactivated successfully."}, status=status.HTTP_200_OK)
 
 
 # ── Appointments ──────────────────────────────────────────────────────────────
@@ -367,3 +392,20 @@ class AdminPatientListAPIView(APIView):
             }
             for p in patients
         ])
+
+
+# ── Shift Detail (FIX: Added missing view for shift update/delete) ─────────────
+
+class ShiftDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsHospitalAdmin]
+
+    def put(self, request, pk):
+        shift = get_object_or_404(Shift, pk=pk)
+        serializer = ShiftSerializer(shift, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, pk):
+        get_object_or_404(Shift, pk=pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

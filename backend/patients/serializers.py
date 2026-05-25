@@ -4,59 +4,32 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
+
 class PatientSerializer(serializers.ModelSerializer):
-
-    user = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all()
-    )
-
-    username = serializers.CharField(
-        source='user.username',
-        read_only=True
-    )
-
-    email = serializers.EmailField(
-        source='user.email',
-        read_only=True
-    )
-
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    username  = serializers.CharField(source='user.username', read_only=True)
+    email     = serializers.EmailField(source='user.email', read_only=True)
     full_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Patient
-
         fields = [
-            'id',
-            'user',
-            'patient_id',
-            'username',
-            'email',
-            'full_name',
-            'phone',
-            'address',
-            'age',
-            'gender',
-            'blood_group',
-            'emergency_contact',
-            'is_blocked',
-            'created_at',
-            'updated_at',
+            'id', 'user', 'patient_id',
+            'username', 'email', 'full_name',
+            'phone', 'address', 'age', 'gender',
+            'blood_group', 'emergency_contact',
+            'is_blocked', 'created_at', 'updated_at',
         ]
-
         read_only_fields = [
-            'id',
-            'patient_id',
-            'username',
-            'email',
-            'full_name',
-            'created_at',
-            'updated_at',
+            'id', 'patient_id', 'username',
+            'email', 'full_name', 'created_at', 'updated_at',
         ]
 
     def get_full_name(self, obj):
         name = f"{obj.user.first_name} {obj.user.last_name}".strip()
         return name or obj.user.username
-        
+
+
 class PatientUpdateSerializer(serializers.ModelSerializer):
     """For patient self-update or receptionist update — excludes identity fields."""
     class Meta:
@@ -72,9 +45,9 @@ class MedicalReportSerializer(serializers.ModelSerializer):
 
 
 class MedicalRecordSerializer(serializers.ModelSerializer):
-    doctor_name = serializers.CharField(source='doctor.user.username', read_only=True)
+    doctor_name  = serializers.CharField(source='doctor.user.username', read_only=True)
     patient_name = serializers.CharField(source='patient.user.username', read_only=True)
-    reports = MedicalReportSerializer(many=True, read_only=True)
+    reports      = MedicalReportSerializer(many=True, read_only=True)
 
     class Meta:
         model = MedicalRecord
@@ -89,7 +62,7 @@ class MedicalRecordSerializer(serializers.ModelSerializer):
 
 class FeedbackSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.user.username', read_only=True)
-    doctor_name = serializers.CharField(source='doctor.user.username', read_only=True)
+    doctor_name  = serializers.CharField(source='doctor.user.username', read_only=True)
 
     class Meta:
         model = Feedback
@@ -101,6 +74,8 @@ class FeedbackSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'patient', 'created_at']
 
     def validate_rating(self, value):
+        # FIX: Kept serializer-level validation even though model now has choices,
+        # so API returns a clear error message rather than a generic DB constraint error.
         if not (1 <= value <= 5):
             raise serializers.ValidationError("Rating must be between 1 and 5.")
         return value
@@ -133,7 +108,7 @@ class SupportTicketStatusSerializer(serializers.ModelSerializer):
 
 class AdmissionSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.user.username', read_only=True)
-    is_admitted = serializers.SerializerMethodField()
+    is_admitted  = serializers.SerializerMethodField()
 
     class Meta:
         model = Admission

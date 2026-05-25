@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Department, Designation, Shift, HospitalSettings, NotificationTemplate, ActivityLog
-from receptionist.models import Receptionist
+# FIX: Removed unused 'from receptionist.models import Receptionist' import
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -60,5 +60,5 @@ class DoctorCreateSerializer(serializers.Serializer):
     specialization = serializers.CharField(max_length=200, required=False, default='')
     license_no = serializers.CharField(max_length=100)
     qualification = serializers.CharField(max_length=200, required=False, default='')
-    years_of_experience = serializers.IntegerField(default=0)
+    years_of_experience = serializers.IntegerField(default=0, min_value=0)
     department_id = serializers.IntegerField(required=False, allow_null=True)

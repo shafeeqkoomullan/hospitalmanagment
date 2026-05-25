@@ -5,7 +5,6 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from collections import defaultdict
 
-import secrets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -35,280 +34,152 @@ from .serializers import (
     TokenSerializer,
 )
 from .permissions import IsReceptionist
-from .utils import generate_next_token   # ✅ CORRECT
+from .utils import generate_next_token
+
+# FIX: Removed 'import secrets' — was imported at the top level but only used
+# inside PatientRegisterAPIView. Moved inline for clarity.
 
 User = get_user_model()
 
 
 # ── Dashboard ─────────────────────────────────────────
 
-
 class ReceptionistDashboardAPIView(APIView):
-
     permission_classes = [IsAuthenticated, IsReceptionist]
 
     def get(self, request):
-
         today = timezone.now().date()
-
-        # ============================================
-        # Base Appointment Query
-        # ============================================
 
         today_appointments = (
             Appointment.objects
             .filter(appointment_date=today)
-            .select_related(
-                "patient__user",
-                "doctor__user",
-            )
+            .select_related("patient__user", "doctor__user")
         )
-
-        # ============================================
-        # Dashboard Stats
-        # ============================================
 
         total_appointments = today_appointments.count()
 
-        checked_in = (
-            CheckIn.objects.filter(
-                appointment__appointment_date=today
-            ).count()
-        )
-
-        walkins = (
-            WalkIn.objects.filter(
-                registered_at__date=today
-            ).count()
-        )
-
-        visitors = (
-            VisitorLog.objects.filter(
-                check_in_time__date=today
-            ).count()
-        )
-
-        # ============================================
-        # Queue Appointments
-        # ============================================
+        checked_in = CheckIn.objects.filter(appointment__appointment_date=today).count()
+        walkins    = WalkIn.objects.filter(registered_at__date=today).count()
+        visitors   = VisitorLog.objects.filter(check_in_time__date=today).count()
 
         queue_appointments = (
             today_appointments
-            .filter(
-                status__in=[
-                    "Scheduled",
-                    "Checked In",
-                ]
-            )
-            .order_by(
-                "doctor",
-                "appointment_time",
-            )
+            # FIX: Use model constants instead of raw strings
+            .filter(status__in=[Appointment.STATUS_SCHEDULED, Appointment.STATUS_CHECKED_IN])
+            .order_by("doctor", "appointment_time")
         )
-
-        # ============================================
-        # Completed Consultations
-        # ============================================
 
         completed_appointments = (
             today_appointments
-            .filter(status="Completed")
+            .filter(status=Appointment.STATUS_COMPLETED)
             .prefetch_related('bills')
             .order_by("-appointment_time")
         )
 
-        # ============================================
-        # Doctor-Based Queue
-        # ============================================
-
         doctor_queues = defaultdict(list)
-
         for ap in queue_appointments:
-
-            doctor_name = (
-                ap.doctor.user.get_full_name()
-                or ap.doctor.user.username
-            ) if ap.doctor else "Unknown Doctor"
-
-            patient_name = (
-                ap.patient.user.get_full_name()
-                or ap.patient.user.username
-            ) if ap.patient else "—"
-
+            doctor_name  = ap.doctor.user.get_full_name() or ap.doctor.user.username if ap.doctor else "Unknown Doctor"
+            patient_name = ap.patient.user.get_full_name() or ap.patient.user.username if ap.patient else "—"
             doctor_queues[doctor_name].append({
-
-                "id": ap.id,
-
+                "id":           ap.id,
                 "patient_name": patient_name,
-
-                "time": (
-                    ap.appointment_time.strftime("%I:%M %p")
-                    if ap.appointment_time
-                    else "—"
-                ),
-
-                "status": ap.status,
-
-                "token": ap.token_number or "—",
-
+                "time":         ap.appointment_time.strftime("%I:%M %p") if ap.appointment_time else "—",
+                "status":       ap.status,
+                "token":        ap.token_number or "—",
             })
 
-        # ============================================
-        # Completed Consultation Data
-        # ============================================
-
-        completed_data = []
-
-        for ap in completed_appointments:
-
-            completed_data.append({
-
-                "id": ap.id,
-
-                "patient_name": (
-                    ap.patient.user.get_full_name()
-                    or ap.patient.user.username
-                ) if ap.patient else "—",
-
-                "doctor_name": (
-                    ap.doctor.user.get_full_name()
-                    or ap.doctor.user.username
-                ) if ap.doctor else "—",
-
-                "time": (
-                    ap.appointment_time.strftime("%I:%M %p")
-                    if ap.appointment_time
-                    else "—"
-                ),
-
-                "status": ap.status,
-
-                "token": ap.token_number or "—",
-
-                "has_bill": (
-                    hasattr(ap, "bills")
-                    and ap.bills.exists()
-                ),
-
-            })
-
-        # ============================================
-        # Final Response
-        # ============================================
+        completed_data = [
+            {
+                "id":           ap.id,
+                "patient_name": ap.patient.user.get_full_name() or ap.patient.user.username if ap.patient else "—",
+                "doctor_name":  ap.doctor.user.get_full_name() or ap.doctor.user.username if ap.doctor else "—",
+                "time":         ap.appointment_time.strftime("%I:%M %p") if ap.appointment_time else "—",
+                "status":       ap.status,
+                "token":        ap.token_number or "—",
+                # FIX: Was using hasattr + .exists() inside a loop — N+1 risk since
+                # prefetch_related is used. Use the prefetched cache instead.
+                "has_bill":     len(ap.bills.all()) > 0,
+            }
+            for ap in completed_appointments
+        ]
 
         return Response({
-
-            "total_appointments":
-                total_appointments,
-
-            "checked_in":
-                checked_in,
-
-            "walkins":
-                walkins,
-
-            "visitors":
-                visitors,
-
-            "doctor_queues":
-                doctor_queues,
-
-            "completed_consultations":
-                completed_data,
-
+            "total_appointments":    total_appointments,
+            "checked_in":            checked_in,
+            "walkins":               walkins,
+            "visitors":              visitors,
+            "doctor_queues":         doctor_queues,
+            "completed_consultations": completed_data,
         })
+
+
+# ── Patient Registration ──────────────────────────────
 
 class PatientRegisterAPIView(APIView):
     permission_classes = [IsAuthenticated, IsReceptionist]
 
     @transaction.atomic
     def post(self, request):
+        import secrets  # FIX: Moved import inline — not needed at module level
 
         full_name = request.data.get("full_name", "").strip()
-        phone = request.data.get("phone", "").strip()
-        email = request.data.get("email", "").strip()
+        phone     = request.data.get("phone", "").strip()
+        email     = request.data.get("email", "").strip()
 
         if not full_name:
-            return Response(
-                {"full_name": "Patient name is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"full_name": "Patient name is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         if not phone:
-            return Response(
-                {"phone": "Phone number is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"phone": "Phone number is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Prevent duplicate patient
         if User.objects.filter(username=phone).exists():
-            return Response(
-                {"phone": "Patient already exists."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"phone": "Patient already exists."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Split first & last name
-        parts = full_name.split(" ", 1)
+        parts      = full_name.split(" ", 1)
         first_name = parts[0]
-        last_name = parts[1] if len(parts) > 1 else ""
+        last_name  = parts[1] if len(parts) > 1 else ""
 
-        # Generate secure random password
         random_password = secrets.token_urlsafe(12)
 
-        try:
-            # Create user
-            user = User.objects.create_user(
-                username=phone,
-                password=random_password,
-                first_name=first_name,
-                last_name=last_name,
-                email=email,
-                role="patient",
-            )
+        # FIX: Removed bare except + traceback.print_exc() — this was swallowing
+        # real errors and leaking internal stack traces to logs in production.
+        # @transaction.atomic handles rollback automatically on exception.
+        # Manual user.delete() inside except was also redundant because of @atomic.
+        user = User.objects.create_user(
+            username=phone,
+            password=random_password,
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            role="patient",
+        )
 
-            # Patient profile data
-            patient_data = {
-                "user": user.id,
-                "phone": phone,
-                "gender": request.data.get("gender", "other"),
-                "address": request.data.get("address", ""),
-                "age": request.data.get("age"),
-                "blood_group": request.data.get("blood_group", ""),
-                "emergency_contact": request.data.get("emergency_contact", ""),
-            }
+        patient_data = {
+            "user":              user.id,
+            "phone":             phone,
+            "gender":            request.data.get("gender", "other"),
+            "address":           request.data.get("address", ""),
+            "age":               request.data.get("age"),
+            "blood_group":       request.data.get("blood_group", ""),
+            "emergency_contact": request.data.get("emergency_contact", ""),
+        }
 
-            serializer = PatientSerializer(data=patient_data)
-
-            if serializer.is_valid():
-                serializer.save()
-
-                return Response(
-                    {
-                        "message": "Patient registered successfully",
-                        "patient": serializer.data,
-                        "generated_password": random_password,
-                    },
-                    status=status.HTTP_201_CREATED
-                )
-
-            # rollback user if serializer fails
-            user.delete()
-
-            return Response(
-                serializer.errors,
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-
+        serializer = PatientSerializer(data=patient_data)
+        if serializer.is_valid():
+            serializer.save()
             return Response(
                 {
-                    "error": str(e)
+                    "message":            "Patient registered successfully",
+                    "patient":            serializer.data,
+                    "generated_password": random_password,
                 },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_201_CREATED
             )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ── Patient List, Detail, Update, Block ───────────────
 
 class PatientListAPIView(APIView):
     permission_classes = [IsAuthenticated, IsReceptionist]
@@ -330,12 +201,14 @@ class PatientUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated, IsReceptionist]
 
     def patch(self, request, patient_id):
-        patient = get_object_or_404(Patient, id=patient_id)
+        patient    = get_object_or_404(Patient, id=patient_id)
         serializer = PatientUpdateSerializer(patient, data=request.data, partial=True)
 
         if serializer.is_valid():
             serializer.save()
-            return Response(PatientSerializer(patient).data)
+            # FIX: Was returning PatientSerializer(patient) with stale pre-save data.
+            # Re-fetch with select_related to return fresh accurate response.
+            return Response(PatientSerializer(Patient.objects.select_related('user').get(pk=patient.pk)).data)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -347,6 +220,11 @@ class PatientBlockToggleAPIView(APIView):
         patient = get_object_or_404(Patient, id=patient_id)
         patient.is_blocked = not patient.is_blocked
         patient.save(update_fields=['is_blocked'])
+        # FIX: Also toggle user.is_active so blocked patients cannot log in.
+        # is_blocked alone only blocks app-level checks — the user could still
+        # obtain a valid JWT and access any endpoint that doesn't check is_blocked.
+        patient.user.is_active = not patient.is_blocked
+        patient.user.save(update_fields=['is_active'])
         return Response({"id": patient.id, "is_blocked": patient.is_blocked})
 
 
@@ -355,14 +233,15 @@ class ReceptionistPatientMedicalRecordListAPIView(APIView):
 
     def get(self, request, patient_id):
         patient = get_object_or_404(Patient, id=patient_id)
-
         records = (
             MedicalRecord.objects
             .filter(patient=patient)
             .select_related('doctor__user')
+            # FIX: Added prefetch_related('reports') — MedicalRecordSerializer
+            # accesses reports but they weren't being prefetched, causing N+1
+            .prefetch_related('reports')
             .order_by('-created_at')
         )
-
         return Response(MedicalRecordSerializer(records, many=True).data)
 
 
@@ -373,14 +252,12 @@ class ReceptionistTodayAppointmentsAPIView(APIView):
 
     def get(self, request):
         today = timezone.now().date()
-
         appointments = (
             Appointment.objects
             .filter(appointment_date=today)
             .select_related('patient__user', 'doctor__user')
             .order_by('appointment_time')
         )
-
         return Response(AppointmentSerializer(appointments, many=True).data)
 
 
@@ -392,13 +269,10 @@ class ReceptionistAppointmentCreateAPIView(APIView):
         serializer = AppointmentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        appointment = serializer.save(created_by=request.user)
+        appointment  = serializer.save(created_by=request.user)
         receptionist = get_object_or_404(Receptionist, user=request.user)
 
-        token_num = generate_next_token(
-            appointment.doctor,
-            appointment.appointment_date
-        )
+        token_num = generate_next_token(appointment.doctor, appointment.appointment_date)
 
         appointment.token_number = token_num
         appointment.save(update_fields=['token_number'])
@@ -410,144 +284,11 @@ class ReceptionistAppointmentCreateAPIView(APIView):
         )
 
         return Response({
-            "message": "Appointment created successfully",
-            "appointment": AppointmentSerializer(appointment).data,
+            "message":      "Appointment created successfully",
+            "appointment":  AppointmentSerializer(appointment).data,
             "token_number": token_num,
         }, status=status.HTTP_201_CREATED)
 
-
-# ── Token & Check-In ────────────────────────────────
-
-class GenerateTokenAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsReceptionist]
-
-    def post(self, request, appointment_id):
-        appointment = get_object_or_404(Appointment, id=appointment_id)
-
-        if Token.objects.filter(appointment=appointment).exists():
-            return Response({"error": "Token already generated"}, status=status.HTTP_400_BAD_REQUEST)
-
-        receptionist = get_object_or_404(Receptionist, user=request.user)
-
-        token_num = generate_next_token(
-            appointment.doctor,
-            appointment.appointment_date
-        )
-
-        token = Token.objects.create(
-            appointment=appointment,
-            token_number=token_num,
-            issued_by=receptionist,
-        )
-
-        appointment.token_number = token_num
-        appointment.save(update_fields=['token_number'])
-
-        return Response(TokenSerializer(token).data, status=status.HTTP_201_CREATED)
-
-
-class CheckInAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsReceptionist]
-
-    def post(self, request, appointment_id):
-        appointment = get_object_or_404(Appointment, id=appointment_id)
-
-        if CheckIn.objects.filter(appointment=appointment).exists():
-            return Response({"error": "Already checked in"}, status=status.HTTP_400_BAD_REQUEST)
-
-        receptionist = get_object_or_404(Receptionist, user=request.user)
-
-        checkin = CheckIn.objects.create(
-            appointment=appointment,
-            receptionist=receptionist
-        )
-
-        return Response(CheckInSerializer(checkin).data, status=status.HTTP_201_CREATED)
-
-
-# ── Walk-in ─────────────────────────────────────────
-
-class WalkInCreateAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsReceptionist]
-
-    def post(self, request):
-        serializer = WalkInSerializer(data=request.data)
-
-        if serializer.is_valid():
-            receptionist = get_object_or_404(Receptionist, user=request.user)
-            doctor = serializer.validated_data['doctor']
-
-            token_num = generate_next_token(
-                doctor,
-                timezone.now().date()
-            )
-
-            serializer.save(
-                receptionist=receptionist,
-                token_number=token_num
-            )
-
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# ── Visitors ────────────────────────────────────────
-
-class VisitorLogCreateAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsReceptionist]
-
-    def post(self, request):
-        receptionist = get_object_or_404(Receptionist, user=request.user)
-        serializer = VisitorLogSerializer(data=request.data)
-
-        if serializer.is_valid():
-            serializer.save(receptionist=receptionist)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class VisitorCheckoutAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsReceptionist]
-
-    def post(self, request, visitor_id):
-        visit = get_object_or_404(VisitorLog, id=visitor_id)
-
-        if visit.check_out_time:
-            return Response({"error": "Already checked out"}, status=status.HTTP_400_BAD_REQUEST)
-
-        visit.check_out_time = timezone.now()
-        visit.save(update_fields=['check_out_time'])
-
-        return Response({
-            "id": visit.id,
-            "check_out_time": visit.check_out_time
-        })
-
-
-# ── Reference Data ──────────────────────────────────
-
-class ReceptionistDepartmentListAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsReceptionist]
-
-    def get(self, request):
-        departments = Department.objects.all().order_by('name')
-        return Response(DepartmentSerializer(departments, many=True).data)
-
-
-class ReceptionistDoctorListAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsReceptionist]
-
-    def get(self, request):
-        doctors = (
-            Doctor.objects
-            .select_related('user', 'department')
-            .filter(is_active=True)
-            .order_by('id')
-        )
-
-        return Response(DoctorSerializer(doctors, many=True).data)
 
 class ReceptionistAppointmentsByDateAPIView(APIView):
     permission_classes = [IsAuthenticated, IsReceptionist]
@@ -573,7 +314,130 @@ class ReceptionistAppointmentsByDateAPIView(APIView):
         )
 
         return Response({
-            "date": str(selected_date),
-            "count": appointments.count(),
-            "results": AppointmentSerializer(appointments, many=True).data
+            "date":    str(selected_date),
+            "count":   appointments.count(),
+            "results": AppointmentSerializer(appointments, many=True).data,
         })
+
+
+# ── Token & Check-In ────────────────────────────────
+
+class GenerateTokenAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsReceptionist]
+
+    def post(self, request, appointment_id):
+        appointment = get_object_or_404(Appointment, id=appointment_id)
+
+        if Token.objects.filter(appointment=appointment).exists():
+            return Response({"error": "Token already generated"}, status=status.HTTP_400_BAD_REQUEST)
+
+        receptionist = get_object_or_404(Receptionist, user=request.user)
+        token_num    = generate_next_token(appointment.doctor, appointment.appointment_date)
+
+        token = Token.objects.create(
+            appointment=appointment,
+            token_number=token_num,
+            issued_by=receptionist,
+        )
+
+        appointment.token_number = token_num
+        appointment.save(update_fields=['token_number'])
+
+        return Response(TokenSerializer(token).data, status=status.HTTP_201_CREATED)
+
+
+class CheckInAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsReceptionist]
+
+    def post(self, request, appointment_id):
+        appointment = get_object_or_404(Appointment, id=appointment_id)
+
+        if CheckIn.objects.filter(appointment=appointment).exists():
+            return Response({"error": "Already checked in"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # FIX: Added guard — can't check in a cancelled or completed appointment
+        if appointment.status in [Appointment.STATUS_CANCELLED, Appointment.STATUS_COMPLETED]:
+            return Response(
+                {"error": f"Cannot check in an appointment with status '{appointment.status}'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        receptionist = get_object_or_404(Receptionist, user=request.user)
+        checkin = CheckIn.objects.create(appointment=appointment, receptionist=receptionist)
+
+        # FIX: Update appointment status to Checked In after check-in
+        appointment.status = Appointment.STATUS_CHECKED_IN
+        appointment.save(update_fields=['status'])
+
+        return Response(CheckInSerializer(checkin).data, status=status.HTTP_201_CREATED)
+
+
+# ── Walk-in ─────────────────────────────────────────
+
+class WalkInCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsReceptionist]
+
+    def post(self, request):
+        serializer = WalkInSerializer(data=request.data)
+
+        if serializer.is_valid():
+            receptionist = get_object_or_404(Receptionist, user=request.user)
+            doctor       = serializer.validated_data['doctor']
+            token_num    = generate_next_token(doctor, timezone.now().date())
+            serializer.save(receptionist=receptionist, token_number=token_num)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ── Visitors ────────────────────────────────────────
+
+class VisitorLogCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsReceptionist]
+
+    def post(self, request):
+        receptionist = get_object_or_404(Receptionist, user=request.user)
+        serializer   = VisitorLogSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save(receptionist=receptionist)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class VisitorCheckoutAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsReceptionist]
+
+    def post(self, request, visitor_id):
+        visit = get_object_or_404(VisitorLog, id=visitor_id)
+
+        if visit.check_out_time:
+            return Response({"error": "Already checked out"}, status=status.HTTP_400_BAD_REQUEST)
+
+        visit.check_out_time = timezone.now()
+        visit.save(update_fields=['check_out_time'])
+
+        return Response({"id": visit.id, "check_out_time": visit.check_out_time})
+
+
+# ── Reference Data ──────────────────────────────────
+
+class ReceptionistDepartmentListAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsReceptionist]
+
+    def get(self, request):
+        return Response(DepartmentSerializer(Department.objects.all().order_by('name'), many=True).data)
+
+
+class ReceptionistDoctorListAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsReceptionist]
+
+    def get(self, request):
+        doctors = (
+            Doctor.objects
+            .select_related('user', 'department')
+            .filter(is_active=True)
+            .order_by('id')
+        )
+        return Response(DoctorSerializer(doctors, many=True).data)

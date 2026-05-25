@@ -7,6 +7,8 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from core.utils import log_action
+
 from .models import CustomUser
 from .serializers import (
     AccountSerializer,
@@ -34,6 +36,7 @@ class LoginAPIView(APIView):
 
         user = authenticate(request, username=username, password=password)
 
+        # ✅ Check user FIRST before logging
         if not user:
             return Response(
                 {"error": "Invalid credentials."},
@@ -45,6 +48,15 @@ class LoginAPIView(APIView):
                 {"error": "This account has been deactivated."},
                 status=status.HTTP_403_FORBIDDEN
             )
+
+        # ✅ Log AFTER confirming user is valid
+        log_action(
+            actor=user,
+            role=user.role,
+            action="login",
+            instance=user,
+            request=request
+        )
 
         refresh = RefreshToken.for_user(user)
 
@@ -59,13 +71,27 @@ class LogoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        # ✅ Log before blacklist
+        log_action(
+            actor=request.user,
+            role=request.user.role,
+            action="logout",
+            instance=request.user,
+            request=request
+        )
         try:
             refresh_token = request.data.get("refresh")
             token = RefreshToken(refresh_token)
             token.blacklist()
-            return Response({"message": "Logged out successfully."}, status=status.HTTP_200_OK)
+            return Response(
+                {"message": "Logged out successfully."},
+                status=status.HTTP_200_OK
+            )
         except Exception:
-            return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Invalid or expired token."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 # ── Current user ──────────────────────────────────────────────────────────────
@@ -77,11 +103,30 @@ class MeAPIView(APIView):
         return Response(AccountSerializer(request.user).data)
 
     def patch(self, request):
-        serializer = AccountUpdateSerializer(request.user, data=request.data, partial=True)
+        # Strip 'role' to prevent privilege escalation
+        data = request.data.copy()
+        data.pop('role', None)
+
+        serializer = AccountUpdateSerializer(
+            request.user, data=data, partial=True
+        )
+
         if serializer.is_valid():
             serializer.save()
+            # ✅ Log profile update
+            log_action(
+                actor=request.user,
+                role=request.user.role,
+                action="update",
+                instance=request.user,
+                request=request
+            )
             return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 class ChangePasswordAPIView(APIView):
@@ -91,7 +136,10 @@ class ChangePasswordAPIView(APIView):
         serializer = ChangePasswordSerializer(data=request.data)
 
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         user = request.user
 
@@ -103,7 +151,20 @@ class ChangePasswordAPIView(APIView):
 
         user.set_password(serializer.validated_data['new_password'])
         user.save()
-        return Response({"message": "Password changed successfully."}, status=status.HTTP_200_OK)
+
+        # ✅ Log password change
+        log_action(
+            actor=request.user,
+            role=request.user.role,
+            action="change_password",
+            instance=request.user,
+            request=request
+        )
+
+        return Response(
+            {"message": "Password changed successfully."},
+            status=status.HTTP_200_OK
+        )
 
 
 # ── Account Management (Admin only) ───────────────────────────────────────────
@@ -119,8 +180,11 @@ class AccountListAPIView(APIView):
 
         if role:
             accounts = accounts.filter(role=role)
+
         if is_active is not None:
-            accounts = accounts.filter(is_active=is_active.lower() == 'true')
+            accounts = accounts.filter(
+                is_active=is_active.lower() in ('true', '1', 'yes')
+            )
 
         return Response(AccountSerializer(accounts, many=True).data)
 
@@ -130,17 +194,35 @@ class AccountCreateAPIView(APIView):
 
     def post(self, request):
         serializer = AccountCreateSerializer(data=request.data)
+
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            user = serializer.save()
+
+            # ✅ Log account creation
+            log_action(
+                actor=request.user,
+                role=request.user.role,
+                action="create",
+                instance=user,
+                request=request
+            )
+
+            return Response(
+                AccountSerializer(user).data,
+                status=status.HTTP_201_CREATED
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 class AccountDetailAPIView(APIView):
     permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
 
     def get(self, request, pk):
-        account = get_object_or_404(Account, pk=pk)
+        account = get_object_or_404(CustomUser, pk=pk)
         self.check_object_permissions(request, account)
         return Response(AccountSerializer(account).data)
 
@@ -149,22 +231,40 @@ class AccountUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
 
     def patch(self, request, pk):
-        account = get_object_or_404(Account, pk=pk)
+        account = get_object_or_404(CustomUser, pk=pk)
         self.check_object_permissions(request, account)
-        serializer = AccountUpdateSerializer(account, data=request.data, partial=True)
+
+        serializer = AccountUpdateSerializer(
+            account, data=request.data, partial=True
+        )
+
         if serializer.is_valid():
             serializer.save()
+
+            # ✅ Log account update
+            log_action(
+                actor=request.user,
+                role=request.user.role,
+                action="update",
+                instance=account,
+                request=request
+            )
+
             return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 class AccountRoleChangeAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def patch(self, request, pk):
-        account = get_object_or_404(Account, pk=pk)
+        account = get_object_or_404(CustomUser, pk=pk)
         role = request.data.get('role')
-        valid_roles = [r[0] for r in Account.USER_ROLES]
+        valid_roles = [r[0] for r in CustomUser.USER_ROLES]
 
         if role not in valid_roles:
             return Response(
@@ -174,15 +274,24 @@ class AccountRoleChangeAPIView(APIView):
 
         account.role = role
         account.save(update_fields=['role'])
+
+        # ✅ Log role change
+        log_action(
+            actor=request.user,
+            role=request.user.role,
+            action="change_role",
+            instance=account,
+            request=request
+        )
+
         return Response({"id": account.id, "role": account.role})
 
 
 class AccountToggleActiveAPIView(APIView):
-    """Replaces both activate + deactivate — mirrors admin_panel style."""
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def post(self, request, pk):
-        account = get_object_or_404(Account, pk=pk)
+        account = get_object_or_404(CustomUser, pk=pk)
 
         if account == request.user:
             return Response(
@@ -192,6 +301,17 @@ class AccountToggleActiveAPIView(APIView):
 
         account.is_active = not account.is_active
         account.save(update_fields=['is_active'])
+
+        # ✅ Log activate/deactivate
+        action = "activate" if account.is_active else "deactivate"
+        log_action(
+            actor=request.user,
+            role=request.user.role,
+            action=action,
+            instance=account,
+            request=request
+        )
+
         return Response({"id": account.id, "is_active": account.is_active})
 
 
@@ -199,7 +319,7 @@ class AccountDeleteAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def delete(self, request, pk):
-        account = get_object_or_404(Account, pk=pk)
+        account = get_object_or_404(CustomUser, pk=pk)
 
         if account == request.user:
             return Response(
@@ -207,5 +327,18 @@ class AccountDeleteAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # ✅ Log BEFORE delete — after delete pk is gone
+        log_action(
+            actor=request.user,
+            role=request.user.role,
+            action="delete",
+            instance=account,
+            request=request
+        )
+
         account.delete()
-        return Response({"message": "Account deleted."}, status=status.HTTP_204_NO_CONTENT)
+
+        return Response(
+            {"message": "Account deleted."},
+            status=status.HTTP_204_NO_CONTENT
+        )

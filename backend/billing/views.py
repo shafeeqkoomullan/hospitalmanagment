@@ -8,14 +8,25 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
 from accounts.permissions import IsReceptionistOrAdmin, IsAdmin
-from core.utils import log_action
 
 from .models import Bill, Payment
 from .serializers import BillSerializer, BillCreateSerializer, PaymentSerializer
 
+# FIX: Removed 'from core.utils import log_action' — core app does not exist
+# in this project. Logging is handled inline using ActivityLog directly.
+from admin_panel.models import ActivityLog
+
 
 def _actor_role(user):
     return user.role if hasattr(user, 'role') else 'unknown'
+
+
+def _log(user, action):
+    """Safe inline logger using ActivityLog model."""
+    try:
+        ActivityLog.objects.create(user=user, action=action)
+    except Exception:
+        pass  # Never let logging crash a request
 
 
 # ── Bills ─────────────────────────────────────────────────────────────────────
@@ -28,8 +39,8 @@ class BillListCreateAPIView(APIView):
 
         # Filters
         bill_status = request.query_params.get('status')
-        patient_id = request.query_params.get('patient')
-        date = request.query_params.get('date')
+        patient_id  = request.query_params.get('patient')
+        date        = request.query_params.get('date')
 
         if bill_status:
             bills = bills.filter(status=bill_status)
@@ -44,7 +55,7 @@ class BillListCreateAPIView(APIView):
         serializer = BillCreateSerializer(data=request.data)
         if serializer.is_valid():
             bill = serializer.save()
-            log_action(actor=request.user, role=_actor_role(request.user), action="created bill", instance=bill)
+            _log(request.user, f"Created bill #{bill.id}")
             return Response(BillSerializer(bill).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -64,15 +75,16 @@ class BillDetailAPIView(APIView):
         serializer = BillCreateSerializer(bill, data=request.data, partial=True)
         if serializer.is_valid():
             bill = serializer.save()
-            log_action(actor=request.user, role=_actor_role(request.user), action="updated bill", instance=bill)
+            _log(request.user, f"Updated bill #{bill.id}")
             return Response(BillSerializer(bill).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         bill = get_object_or_404(Bill, pk=pk)
-        log_action(actor=request.user, role=_actor_role(request.user), action="deleted bill", instance=bill)
+        _log(request.user, f"Deleted bill #{bill.id}")
         bill.delete()
-        return Response({"message": "Bill deleted."}, status=status.HTTP_204_NO_CONTENT)
+        # FIX: 204 No Content must not include a body
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ── Payments ──────────────────────────────────────────────────────────────────
@@ -93,7 +105,7 @@ class PaymentListCreateAPIView(APIView):
         serializer = PaymentSerializer(data=request.data)
         if serializer.is_valid():
             payment = serializer.save()
-            log_action(actor=request.user, role=_actor_role(request.user), action="recorded payment", instance=payment)
+            _log(request.user, f"Recorded payment {payment.receipt_number}")
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -106,12 +118,18 @@ class PaymentDetailAPIView(APIView):
         return Response(PaymentSerializer(payment).data)
 
     def delete(self, request, pk):
-        """Deleting a payment recalculates bill status automatically via model signal."""
+        # FIX: Updated docstring — no signal involved, uses direct method call
+        """Deleting a payment recalculates bill status via bill.refresh_status()."""
         payment = get_object_or_404(Payment, pk=pk)
         bill = payment.bill
         payment.delete()
         bill.refresh_status()
-        return Response({"message": "Payment deleted and bill status updated."}, status=status.HTTP_204_NO_CONTENT)
+        _log(request.user, f"Deleted payment from bill #{bill.id}")
+        # FIX: Changed 204 (no body) to 200 so the message is actually delivered
+        return Response(
+            {"message": "Payment deleted and bill status updated."},
+            status=status.HTTP_200_OK
+        )
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -134,33 +152,36 @@ class BillingDashboardAPIView(APIView):
             ).aggregate(total=Sum('amount_paid'))['total'] or 0
         )
 
-        total_bills = Bill.objects.count()
-        paid_bills = Bill.objects.filter(status='Paid').count()
-        unpaid_bills = Bill.objects.filter(status='Unpaid').count()
-        partial_bills = Bill.objects.filter(status='Partial').count()
-        overdue_bills = Bill.objects.filter(status='Overdue').count()
+        total_bills   = Bill.objects.count()
+        paid_bills    = Bill.objects.filter(status=Bill.STATUS_PAID).count()
+        unpaid_bills  = Bill.objects.filter(status=Bill.STATUS_UNPAID).count()
+        partial_bills = Bill.objects.filter(status=Bill.STATUS_PARTIAL).count()
+        overdue_bills = Bill.objects.filter(status=Bill.STATUS_OVERDUE).count()
 
         # Single query for unpaid amount — no N+1
         unpaid_amount = (
-            Bill.objects.filter(status__in=['Unpaid', 'Partial', 'Overdue'])
+            Bill.objects.filter(status__in=[Bill.STATUS_UNPAID, Bill.STATUS_PARTIAL, Bill.STATUS_OVERDUE])
             .aggregate(total=Sum('amount'))['total'] or 0
         ) - (
-            Payment.objects.filter(bill__status__in=['Unpaid', 'Partial', 'Overdue'])
+            Payment.objects.filter(bill__status__in=[Bill.STATUS_UNPAID, Bill.STATUS_PARTIAL, Bill.STATUS_OVERDUE])
             .aggregate(total=Sum('amount_paid'))['total'] or 0
         )
+
+        # FIX: Clamp to zero — overpayments could otherwise produce a negative value
+        unpaid_amount = max(0, unpaid_amount)
 
         recent_bills = Bill.objects.select_related('patient__user').order_by('-bill_date')[:5]
 
         return Response({
-            "daily_earnings": float(daily_earnings),
+            "daily_earnings":   float(daily_earnings),
             "monthly_earnings": float(monthly_earnings),
             "bills": {
-                "total": total_bills,
-                "paid": paid_bills,
-                "unpaid": unpaid_bills,
+                "total":   total_bills,
+                "paid":    paid_bills,
+                "unpaid":  unpaid_bills,
                 "partial": partial_bills,
                 "overdue": overdue_bills,
             },
             "unpaid_amount": float(unpaid_amount),
-            "recent_bills": BillSerializer(recent_bills, many=True).data,
+            "recent_bills":  BillSerializer(recent_bills, many=True).data,
         })
