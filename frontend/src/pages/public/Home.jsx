@@ -7,20 +7,73 @@ import { useEffect, useState } from "react";
 // Now both use encodeURIComponent so the department name is passed intact.
 const deptSlug = (name) => encodeURIComponent(name);
 
+// Replace only the departments array in your Home.jsx with this:
+
 const departments = [
-  { name: "Cardiology",               img: "https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400&q=80", desc: "Heart care with advanced cardiac facilities" },
-  { name: "ENT",                       img: "https://images.unsplash.com/photo-1580281658629-5a79c0fbdc8b?w=400&q=80", desc: "Ear, nose and throat specialist care" },
-  { name: "Orthopaedics",              img: "https://images.unsplash.com/photo-1600959907703-125ba1374a12?w=400&q=80", desc: "Bone and joint treatment expertise" },
-  { name: "Paediatrics",               img: "https://images.unsplash.com/photo-1606813902767-d9cb3c7c0f28?w=400&q=80", desc: "Specialised care for children" },
-  { name: "Neurology",                 img: "https://images.unsplash.com/photo-1559757175-5700dde675bc?w=400&q=80", desc: "Brain and nervous system treatment" },
-  { name: "General Surgery",           img: "https://images.unsplash.com/photo-1550831107-1553da8c8464?w=400&q=80", desc: "Expert surgical procedures" },
-  { name: "Obstetrics & Gynecology",   img: "https://images.unsplash.com/photo-1584515933487-779824d29309?w=400&q=80", desc: "Women's health and maternity" },
-  { name: "Vascular Surgery",          img: "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&q=80", desc: "Varicose veins and vascular care" },
-  { name: "Nephrology",                img: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=400&q=80", desc: "Kidney disease management" },
-  { name: "Gastroenterology",          img: "https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=400&q=80", desc: "Digestive system disorders" },
-  { name: "Dermatology",               img: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&q=80", desc: "Skin, hair and nail treatments" },
-  { name: "Psychiatry",                img: "https://images.unsplash.com/photo-1527137342181-19aab11a8ee8?w=400&q=80", desc: "Mental health and wellness" },
+  {
+    name: "Cardiology",
+    img: "https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400&q=80",
+    desc: "Heart care with advanced cardiac facilities",
+  },
+  {
+    name: "ENT",
+    // FIX: Old URL was broken — replaced with working ear/medical image
+    img: "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&q=80",
+    desc: "Ear, nose and throat specialist care",
+  },
+  {
+    name: "Orthopaedics",
+    img: "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?w=400&q=80",
+    desc: "Bone and joint treatment expertise",
+  },
+  {
+    name: "Paediatrics",
+    // FIX: Old URL was broken — replaced with working children/care image
+    img: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=400&q=80",
+    desc: "Specialised care for children",
+  },
+  {
+    name: "Neurology",
+    img: "https://images.unsplash.com/photo-1559757175-5700dde675bc?w=400&q=80",
+    desc: "Brain and nervous system treatment",
+  },
+  {
+    name: "General Surgery",
+    img: "https://images.unsplash.com/photo-1551076805-e1869033e561?w=400&q=80",
+    desc: "Expert surgical procedures",
+  },
+  {
+    name: "Obstetrics & Gynecology",
+    img: "https://images.unsplash.com/photo-1584515933487-779824d29309?w=400&q=80",
+    desc: "Women's health and maternity",
+  },
+  {
+    name: "Vascular Surgery",
+    img: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=400&q=80",
+    desc: "Varicose veins and vascular care",
+  },
+  {
+    name: "Nephrology",
+    img: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&q=80",
+    desc: "Kidney disease management",
+  },
+  {
+    name: "Gastroenterology",
+    img: "https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=400&q=80",
+    desc: "Digestive system disorders",
+  },
+  {
+    name: "Dermatology",
+    img: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&q=80",
+    desc: "Skin, hair and nail treatments",
+  },
+  {
+    name: "Psychiatry",
+    img: "https://images.unsplash.com/photo-1527137342181-19aab11a8ee8?w=400&q=80",
+    desc: "Mental health and wellness",
+  },
 ];
+
 
 const slides = [
   { title: "Trusted Leadership... Proven Values",    sub: "Excellence in healthcare — serving thousands of patients",          img: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=1600&q=85" },

@@ -1,6 +1,8 @@
 from pathlib import Path
 from datetime import timedelta
 import os
+import dj_database_url
+from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -37,7 +39,8 @@ INSTALLED_APPS = [
 
 # 🟠 Fix 4: SecurityMiddleware first, CorsMiddleware second, no duplicates
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',           # must be first
+    'django.middleware.security.SecurityMiddleware', 
+    'whitenoise.middleware.WhiteNoiseMiddleware',          # must be first
     'corsheaders.middleware.CorsMiddleware',                   # must be before CommonMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',               # only once
@@ -68,10 +71,9 @@ TEMPLATES = [
 WSGI_APPLICATION = 'hospital_site.wsgi.application'
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=config('DATABASE_URL', default=f'sqlite:///{BASE_DIR}/db.sqlite3')
+    )
 }
 
 AUTH_PASSWORD_VALIDATORS = [
